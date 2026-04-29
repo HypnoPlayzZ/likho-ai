@@ -1,0 +1,64 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+dist/
+build/
+out/
+target/
+*.exe
+*.msi
+*.dmg
+*.AppImage
+
+# Environment variables — NEVER commit these
+.env
+.env.local
+.env.production
+.dev.vars
+.dev.vars.*
+!.env.example
+
+# Tauri build artifacts
+desktop/src-tauri/target/
+desktop/src-tauri/gen/
+
+# Cloudflare Workers
+proxy/.wrangler/
+proxy/dist/
+
+# IDE
+.vscode/
+!.vscode/settings.json.example
+.idea/
+*.swp
+*.swn
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing
+coverage/
+*.lcov
+.nyc_output/
+
+# Code signing — keep certs out of repo
+*.p12
+*.pfx
+*.cer
+*.pem
+signing-key.json
+
+# Local development
+local-test/
+scratch/
+*.local
