@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Briefcase,
@@ -10,9 +10,10 @@ import {
   Check,
   Languages,
   Sparkles,
+  Download,
   type LucideIcon,
 } from "lucide-react";
-import { landingRewrite, type Rewrites, type DetectedLanguage } from "@/lib/api";
+import type { Rewrites, DetectedLanguage } from "@/lib/api";
 
 type Tone = "professional" | "concise" | "friendly";
 const TONES: Tone[] = ["professional", "concise", "friendly"];
@@ -22,75 +23,85 @@ const TONE_META: Record<Tone, { Icon: LucideIcon; label: string }> = {
   friendly: { Icon: Smile, label: "Friendly" },
 };
 
-const SAMPLES = [
-  "kindly do the needful asap regarding the invoice, also PFA",
-  "mera kal meeting hai pls confirm karo",
-  "Sir please send the report jaldi, also PFA the document",
+// Pre-rendered demo rewrites — the landing page never calls the AI proxy,
+// so credentials can't be exhausted no matter how many visitors click.
+// The three samples were chosen to showcase the three things the desktop
+// app does well: Indian-English idiom cleanup, Hinglish→English, and
+// formal-tone polish.
+type Sample = { label: string; original: string; rewrites: Rewrites };
+const SAMPLES: Sample[] = [
+  {
+    label: "Indian English",
+    original: "kindly do the needful asap regarding the invoice, also PFA",
+    rewrites: {
+      professional:
+        "Could you please look into the invoice and take the necessary action? I've attached it for your reference.",
+      concise: "Please process the attached invoice as soon as possible.",
+      friendly:
+        "Hey — when you get a moment, could you take a look at the invoice I've attached? Thanks!",
+      detected_language: "english",
+    },
+  },
+  {
+    label: "Hinglish",
+    original: "mera kal meeting hai pls confirm karo",
+    rewrites: {
+      professional:
+        "I have a meeting scheduled for tomorrow. Could you please confirm your availability?",
+      concise: "Meeting tomorrow — please confirm.",
+      friendly: "I've got a meeting tomorrow — can you confirm if you're in?",
+      detected_language: "hinglish",
+    },
+  },
+  {
+    label: "Formal polish",
+    original: "Sir please send the report jaldi, also PFA the document",
+    rewrites: {
+      professional:
+        "Could you please share the report at the earliest? I have attached the supporting document for reference.",
+      concise: "Please share the report soon — supporting document attached.",
+      friendly:
+        "Hi — could you send over the report when you can? I've attached the document too.",
+      detected_language: "english",
+    },
+  },
 ];
 
-// Canned rewrites for the 3 samples. Used as a fallback preview when the
-// Worker is unreachable — the page demonstrates the magic even before the
-// proxy is deployed. Clearly badged "Preview" so it's not deceptive.
-const CANNED: Record<string, Rewrites> = {
-  [SAMPLES[0]]: {
-    professional:
-      "Could you please look into the invoice and take the necessary action? I've attached it for your reference.",
-    concise: "Please process the attached invoice as soon as possible.",
-    friendly:
-      "Hey — when you get a moment, could you take a look at the invoice I've attached? Thanks!",
-    detected_language: "english",
-  },
-  [SAMPLES[1]]: {
-    professional:
-      "I have a meeting scheduled for tomorrow. Could you please confirm your availability?",
-    concise: "Meeting tomorrow — please confirm.",
-    friendly: "I've got a meeting tomorrow — can you confirm if you're in?",
-    detected_language: "hinglish",
-  },
-  [SAMPLES[2]]: {
-    professional:
-      "Could you please share the report at the earliest? I have attached the supporting document for reference.",
-    concise: "Please share the report soon — supporting document attached.",
-    friendly:
-      "Hi — could you send over the report when you can? I've attached the document too.",
-    detected_language: "english",
-  },
-};
-
 type View =
-  | { kind: "input" }
-  | { kind: "loading"; original: string }
-  | { kind: "done"; original: string; rewrites: Rewrites; preview?: boolean }
-  | { kind: "rate_limited"; message: string }
-  | { kind: "error"; message: string };
+  | { kind: "idle" }
+  | { kind: "loading"; sample: Sample }
+  | { kind: "done"; sample: Sample };
+
+// Mimic the desktop app's ~1.6s rewrite delay so the demo feels real.
+const FAKE_LATENCY_MS = 1600;
 
 export function InteractiveMockup() {
-  const [text, setText] = useState(SAMPLES[0]);
-  const [view, setView] = useState<View>({ kind: "input" });
+  const [view, setView] = useState<View>({ kind: "idle" });
   const [copiedTone, setCopiedTone] = useState<Tone | null>(null);
+  const timerRef = useRef<number | null>(null);
 
-  const onRun = async () => {
-    const trimmed = text.trim();
-    if (!trimmed) return;
-    setView({ kind: "loading", original: trimmed });
-    const result = await landingRewrite(trimmed);
-    if (result.ok && result.rewrites) {
-      setView({ kind: "done", original: trimmed, rewrites: result.rewrites });
-    } else if (result.error === "rate_limited") {
-      setView({ kind: "rate_limited", message: result.message ?? "Daily limit reached." });
-    } else if (
-      (result.error === "network" || result.error === "upstream") &&
-      CANNED[trimmed]
-    ) {
-      // Worker not reachable, but the user picked one of the canned samples —
-      // show a labelled preview so the page still demonstrates the magic.
-      setView({ kind: "done", original: trimmed, rewrites: CANNED[trimmed], preview: true });
-    } else {
-      setView({ kind: "error", message: result.message ?? "Something went wrong." });
-    }
+  useEffect(() => {
+    return () => {
+      if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  const onPick = (sample: Sample) => {
+    if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+    setView({ kind: "loading", sample });
+    timerRef.current = window.setTimeout(() => {
+      setView({ kind: "done", sample });
+      timerRef.current = null;
+    }, FAKE_LATENCY_MS);
   };
 
-  const onReset = () => setView({ kind: "input" });
+  const onReset = () => {
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    setView({ kind: "idle" });
+  };
 
   const onCopy = async (tone: Tone, value: string) => {
     try {
@@ -110,55 +121,47 @@ export function InteractiveMockup() {
         </div>
         <span className="h-px flex-1 bg-likho-indigo/15" />
         <span className="text-[9px] uppercase tracking-wider font-semibold text-likho-slate">
-          Live demo
+          Demo
         </span>
       </div>
 
       <AnimatePresence mode="wait">
-        {view.kind === "input" && (
+        {view.kind === "idle" && (
           <motion.div
-            key="input"
+            key="idle"
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.18 }}
           >
-            <label className="block text-[11px] uppercase tracking-wider font-semibold text-likho-slate mb-1.5">
-              Your text
-            </label>
-            <textarea
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              rows={3}
-              maxLength={400}
-              className="w-full rounded-xl px-3 py-2.5 bg-white/70 border border-likho-indigo/20 text-sm text-likho-ink placeholder:text-likho-slate/50 focus:bg-white focus:border-likho-indigo/50 focus:outline-none focus:ring-2 focus:ring-likho-indigo/15 resize-none transition-colors"
-              placeholder="Type or pick a sample below…"
-            />
-
-            <div className="mt-2.5 flex flex-wrap gap-1.5">
+            <p className="text-[11px] uppercase tracking-wider font-semibold text-likho-slate mb-2">
+              Pick a sample to see Likho rewrite it
+            </p>
+            <div className="space-y-2">
               {SAMPLES.map((s, i) => (
                 <button
                   key={i}
                   type="button"
-                  onClick={() => setText(s)}
-                  className="text-[11px] px-2.5 py-1 rounded-full bg-likho-indigo/8 hover:bg-likho-indigo/15 border border-likho-indigo/20 text-likho-indigo font-medium transition-colors"
-                  title={s}
+                  onClick={() => onPick(s)}
+                  className="group block w-full text-left rounded-xl px-3 py-2.5 bg-white/55 hover:bg-white/85 border border-likho-indigo/15 hover:border-likho-indigo/40 transition-all hover:scale-[1.01] active:scale-[1.0]"
                 >
-                  Sample {i + 1}
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[9px] uppercase tracking-[0.18em] font-bold text-likho-indigo">
+                      {s.label}
+                    </span>
+                    <ArrowRight
+                      className="ml-auto w-3.5 h-3.5 text-likho-slate group-hover:text-likho-indigo group-hover:translate-x-0.5 transition-all"
+                      strokeWidth={2.5}
+                    />
+                  </div>
+                  <p className="text-sm text-likho-ink italic leading-snug">
+                    "{s.original}"
+                  </p>
                 </button>
               ))}
             </div>
-
-            <button
-              type="button"
-              onClick={onRun}
-              disabled={!text.trim()}
-              className="mt-4 w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-likho-indigo text-likho-cream text-sm font-bold hover:bg-likho-indigo/90 active:scale-[0.99] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Try it <ArrowRight className="w-4 h-4" strokeWidth={2.5} />
-            </button>
-            <p className="mt-2 text-[10px] text-center text-likho-slate">
-              3 free demo rewrites per day
+            <p className="mt-3 text-[10px] text-center text-likho-slate">
+              Want to try your own text? Download the app — works on any Windows app.
             </p>
           </motion.div>
         )}
@@ -170,7 +173,7 @@ export function InteractiveMockup() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.18 }}
           >
-            <OriginalSnippet text={view.original} />
+            <OriginalSnippet text={view.sample.original} />
             <div className="space-y-2">
               {TONES.map((tone) => (
                 <SkeletonCard key={tone} tone={tone} />
@@ -186,72 +189,37 @@ export function InteractiveMockup() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.22 }}
           >
-            {view.preview && (
-              <div className="mb-3 -mt-1 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-100/70 border border-amber-300/60 text-[10px] uppercase tracking-wider font-bold text-amber-700">
-                <Sparkles className="w-2.5 h-2.5" strokeWidth={2.5} />
-                Preview · download for live AI
-              </div>
-            )}
             <OriginalSnippet
-              text={view.original}
-              lang={view.rewrites.detected_language}
+              text={view.sample.original}
+              lang={view.sample.rewrites.detected_language}
             />
             <div className="space-y-2">
               {TONES.map((tone) => (
                 <ToneCard
                   key={tone}
                   tone={tone}
-                  text={view.rewrites[tone]}
+                  text={view.sample.rewrites[tone]}
                   copied={copiedTone === tone}
-                  onClick={() => onCopy(tone, view.rewrites[tone])}
+                  onClick={() => onCopy(tone, view.sample.rewrites[tone])}
                 />
               ))}
             </div>
-            <button
-              type="button"
-              onClick={onReset}
-              className="mt-3 w-full text-center text-xs text-likho-indigo font-semibold hover:underline"
-            >
-              ← Try another
-            </button>
-          </motion.div>
-        )}
-
-        {view.kind === "rate_limited" && (
-          <motion.div
-            key="rate"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center py-6"
-          >
-            <p className="text-base text-likho-indigo font-bold">
-              You've used your 3 daily demos.
-            </p>
-            <p className="text-sm text-likho-slate mt-2">{view.message}</p>
-            <a
-              href="#download"
-              className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-likho-indigo text-likho-cream text-sm font-bold hover:bg-likho-indigo/90 transition-colors"
-            >
-              Download the app <ArrowRight className="w-4 h-4" strokeWidth={2.5} />
-            </a>
-          </motion.div>
-        )}
-
-        {view.kind === "error" && (
-          <motion.div
-            key="error"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="text-center py-6"
-          >
-            <p className="text-sm text-likho-coral">{view.message}</p>
-            <button
-              type="button"
-              onClick={onReset}
-              className="mt-3 text-xs text-likho-indigo font-semibold hover:underline"
-            >
-              Try again
-            </button>
+            <div className="mt-3 flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={onReset}
+                className="text-xs text-likho-indigo font-semibold hover:underline"
+              >
+                ← Try another sample
+              </button>
+              <a
+                href="#download"
+                className="inline-flex items-center gap-1 text-[11px] font-bold text-likho-indigo hover:text-likho-orange transition-colors"
+              >
+                <Download className="w-3 h-3" strokeWidth={2.5} />
+                Try your own text
+              </a>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
