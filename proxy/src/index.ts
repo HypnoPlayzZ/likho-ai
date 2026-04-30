@@ -9,8 +9,15 @@ interface Env {
   RAZORPAY_KEY_ID: string;
   RAZORPAY_KEY_SECRET: string;
   RAZORPAY_WEBHOOK_SECRET?: string;
+  RESEND_API_KEY?: string;
   LIKHO_KV: KVNamespace;
 }
+
+// Resend sandbox sender — works without domain verification but only
+// delivers to the email address that registered the Resend account.
+// Replace with "hello@likho.ai" (or similar) once the domain is verified
+// in the Resend dashboard so real customer emails actually arrive.
+const EMAIL_FROM = "Likho <onboarding@resend.dev>";
 
 // Hard cap for the "first 50 founding spots" promise. Enforced on order
 // creation by counting actual founding:payment:* keys in KV.
@@ -218,6 +225,14 @@ export default {
     // simplest paid-user gating we can do.
     if (url.pathname === "/license/check" && request.method === "POST") {
       return handleLicenseCheck(request, env);
+    }
+
+    // Admin: send a test welcome email to the address you used to register
+    // your Resend account. Useful for verifying RESEND_API_KEY + sandbox
+    // delivery without making a real ₹4,900 payment. No auth right now —
+    // anyone can fire one to a Resend-verified email, which is harmless.
+    if (url.pathname === "/admin/test-email" && request.method === "POST") {
+      return handleAdminTestEmail(request, env);
     }
 
     return json({ error: "not_found" }, 404);
@@ -742,6 +757,12 @@ async function handleRazorpayVerify(request: Request, env: Env): Promise<Respons
       console.log(
         `[razorpay] pro_subscribed sub=${subscriptionId} email_chars=${email.length}`,
       );
+      // Fire-and-forget the welcome email. We `await` so the Worker
+      // doesn't terminate before the request completes — the latency
+      // hit is acceptable on the post-payment path (user sees a spinner).
+      if (email) {
+        await sendProWelcomeEmail(env, email, subscriptionId);
+      }
     }
     return json(
       { ok: true, kind: "subscription", subscription_id: subscriptionId },
@@ -769,6 +790,9 @@ async function handleRazorpayVerify(request: Request, env: Env): Promise<Respons
     console.log(
       `[razorpay] founding_paid payment=${paymentId} email_chars=${email.length}`,
     );
+    if (email) {
+      await sendFoundingWelcomeEmail(env, email, paymentId);
+    }
   }
   return json(
     { ok: true, kind: "order", payment_id: paymentId, order_id: orderId },
@@ -998,4 +1022,154 @@ async function handleLicenseCheck(request: Request, env: Env): Promise<Response>
   // Not a paid user. Still return 200 so the client can act on it.
   console.log(`[license] no match email_chars=${email.length}`);
   return json({ tier: "free", valid: false });
+}
+
+// ---------- Email (transactional, via Resend) ----------
+//
+// Sandbox sender (onboarding@resend.dev) only delivers to the email that
+// owns the Resend account. To deliver to real customers, verify a domain
+// in the Resend dashboard, add the SPF/DKIM/DMARC DNS records, then change
+// EMAIL_FROM at the top of this file to e.g. "Likho <hello@likho.ai>".
+
+interface ResendError {
+  statusCode?: number;
+  message?: string;
+  name?: string;
+}
+
+async function sendEmail(
+  env: Env,
+  to: string,
+  subject: string,
+  html: string,
+  text: string,
+): Promise<{ ok: boolean; id?: string; error?: string }> {
+  if (!env.RESEND_API_KEY) {
+    console.log("[email] RESEND_API_KEY not configured — skipping send");
+    return { ok: false, error: "not_configured" };
+  }
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${env.RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ from: EMAIL_FROM, to, subject, html, text }),
+    });
+    if (!res.ok) {
+      const errBody = (await res.json().catch(() => ({}))) as ResendError;
+      console.log(
+        `[email] send_failed status=${res.status} reason=${errBody.message ?? errBody.name ?? "unknown"} to_chars=${to.length}`,
+      );
+      return { ok: false, error: errBody.message ?? `status_${res.status}` };
+    }
+    const data = (await res.json()) as { id?: string };
+    console.log(`[email] sent id=${data.id} to_chars=${to.length} subject="${subject}"`);
+    return { ok: true, id: data.id };
+  } catch (e) {
+    console.log(`[email] send_exception msg=${(e as Error).message}`);
+    return { ok: false, error: (e as Error).message };
+  }
+}
+
+async function sendFoundingWelcomeEmail(
+  env: Env,
+  email: string,
+  paymentId: string,
+): Promise<void> {
+  const subject = "Welcome to Likho — you're a founding member 🎉";
+  const downloadUrl =
+    "https://github.com/HypnoPlayzZ/likho-ai/releases/latest/download/Likho-Setup.msi";
+  const text = [
+    `Welcome aboard.`,
+    ``,
+    `Your founding-member spot is locked in for life — ₹4,900 once, never again. The Pro features that ship in the coming weeks are yours forever, no more subscription invoices.`,
+    ``,
+    `Download Likho for Windows 11:`,
+    downloadUrl,
+    ``,
+    `After installing, hit Alt+Space anywhere on Windows to open the overlay. Right-click the tray icon → "Already a Founding or Pro member? Sign in" → enter this email (${email}) and you'll bypass the demo cap immediately.`,
+    ``,
+    `Payment receipt: ${paymentId}`,
+    ``,
+    `Reply to this email if anything's broken — I read every reply.`,
+    ``,
+    `— Chetan`,
+    `Founder, Likho`,
+  ].join("\n");
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto; color: #1F2937; line-height: 1.55;">
+      <h1 style="font-size: 22px; font-weight: 700; color: #3730A3; margin-bottom: 8px;">Welcome aboard.</h1>
+      <p style="font-size: 15px;">Your founding-member spot is locked in <strong>for life</strong> — ₹4,900 once, never again. The Pro features that ship in the coming weeks are yours forever, no more subscription invoices.</p>
+      <p style="margin-top: 28px;">
+        <a href="${downloadUrl}" style="display: inline-block; padding: 12px 22px; background: #F97316; color: #fff; font-weight: 700; text-decoration: none; border-radius: 999px;">Download Likho for Windows</a>
+      </p>
+      <p style="font-size: 14px; color: #475569; margin-top: 28px;">After installing, press <strong>Alt + Space</strong> anywhere on Windows to open the overlay. To unlock unlimited rewrites, right-click the tray icon → <em>"Already a Founding or Pro member? Sign in"</em> → enter <strong>${email}</strong>.</p>
+      <p style="font-size: 12px; color: #94A3B8; margin-top: 28px;">Payment receipt: ${paymentId}</p>
+      <p style="font-size: 14px; margin-top: 28px;">Reply to this email if anything's broken — I read every reply.</p>
+      <p style="font-size: 14px; margin-top: 8px;">— Chetan<br><span style="color: #64748B;">Founder, Likho</span></p>
+    </div>
+  `;
+  await sendEmail(env, email, subject, html, text);
+}
+
+async function sendProWelcomeEmail(
+  env: Env,
+  email: string,
+  subscriptionId: string,
+): Promise<void> {
+  const subject = "Welcome to Likho Pro";
+  const downloadUrl =
+    "https://github.com/HypnoPlayzZ/likho-ai/releases/latest/download/Likho-Setup.msi";
+  const text = [
+    `Welcome to Likho Pro.`,
+    ``,
+    `Your subscription is active. ₹299/month, unlimited rewrites, voice mode + custom presets when they ship.`,
+    ``,
+    `Download for Windows 11:`,
+    downloadUrl,
+    ``,
+    `After installing, press Alt+Space anywhere on Windows. To unlock unlimited rewrites, right-click the tray icon → "Already a Founding or Pro member? Sign in" → enter this email (${email}).`,
+    ``,
+    `Subscription ID: ${subscriptionId}`,
+    `Manage anytime via Razorpay (you'll get a separate confirmation from them).`,
+    ``,
+    `— Chetan`,
+    `Founder, Likho`,
+  ].join("\n");
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto; color: #1F2937; line-height: 1.55;">
+      <h1 style="font-size: 22px; font-weight: 700; color: #3730A3; margin-bottom: 8px;">Welcome to Likho Pro.</h1>
+      <p style="font-size: 15px;">Your subscription is active. ₹299/month, unlimited rewrites, voice mode + custom presets when they ship.</p>
+      <p style="margin-top: 28px;">
+        <a href="${downloadUrl}" style="display: inline-block; padding: 12px 22px; background: #F97316; color: #fff; font-weight: 700; text-decoration: none; border-radius: 999px;">Download Likho for Windows</a>
+      </p>
+      <p style="font-size: 14px; color: #475569; margin-top: 28px;">After installing, press <strong>Alt + Space</strong> anywhere on Windows. To unlock unlimited rewrites, right-click the tray icon → <em>"Already a Founding or Pro member? Sign in"</em> → enter <strong>${email}</strong>.</p>
+      <p style="font-size: 12px; color: #94A3B8; margin-top: 28px;">Subscription ID: ${subscriptionId}</p>
+      <p style="font-size: 14px; margin-top: 28px;">— Chetan<br><span style="color: #64748B;">Founder, Likho</span></p>
+    </div>
+  `;
+  await sendEmail(env, email, subject, html, text);
+}
+
+async function handleAdminTestEmail(request: Request, env: Env): Promise<Response> {
+  let body: { email?: unknown };
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "invalid_json" }, 400);
+  }
+  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+  if (!email || !isValidEmail(email)) {
+    return json({ error: "invalid_email" }, 400);
+  }
+  const result = await sendEmail(
+    env,
+    email,
+    "Likho — test email from your Worker",
+    `<p>If you're reading this in your inbox, the Resend integration is wired correctly and you're ready to take real founding-member payments.</p>`,
+    `If you're reading this in your inbox, the Resend integration is wired correctly and you're ready to take real founding-member payments.`,
+  );
+  return json(result, result.ok ? 200 : 502);
 }
