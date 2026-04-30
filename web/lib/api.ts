@@ -119,3 +119,30 @@ export async function fetchSpotsLeft(): Promise<number | null> {
     return null;
   }
 }
+
+// Live founding-member count for the landing-page social-proof badge.
+// Reads paid records (not waitlist signups) so the displayed number is
+// always honest.
+export interface FoundingCount {
+  paid: number;
+  cap: number;
+  remaining: number;
+  full: boolean;
+}
+
+export async function fetchFoundingCount(): Promise<FoundingCount | null> {
+  try {
+    const res = await fetch(`${API_BASE}/founding/count`);
+    if (!res.ok) return null;
+    const data = (await res.json()) as Partial<FoundingCount>;
+    if (typeof data.paid !== "number" || typeof data.cap !== "number") return null;
+    return {
+      paid: data.paid,
+      cap: data.cap,
+      remaining: data.remaining ?? data.cap - data.paid,
+      full: data.full ?? data.paid >= data.cap,
+    };
+  } catch {
+    return null;
+  }
+}

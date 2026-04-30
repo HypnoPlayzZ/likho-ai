@@ -66,6 +66,7 @@ type Status =
   | { kind: "idle" }
   | { kind: "intro" }                                   // first ever Alt+Space
   | { kind: "gated" }                                   // 5/5 demo rewrites used
+  | { kind: "signin" }                                  // tray-menu sign-in entry
   | { kind: "no_selection" }
   | { kind: "rewriting"; original: string }
   | { kind: "done"; original: string; rewrites: Rewrites }
@@ -213,10 +214,17 @@ function App() {
       setShowCounter((n) => n + 1);
     });
 
+    // Tray-menu sign-in: jump straight to the sign-in form without
+    // requiring the user to first burn through 5 demo rewrites.
+    const unlistenSignin = listen("tray:signin", () => {
+      setStatus({ kind: "signin" });
+    });
+
     return () => {
       unlistenCapture.then((fn) => fn());
       unlistenHidden.then((fn) => fn());
       unlistenShown.then((fn) => fn());
+      unlistenSignin.then((fn) => fn());
     };
   }, []);
 
@@ -331,11 +339,16 @@ function App() {
                 onSignUp,
                 openProModal: () => setProModal({ kind: "form" }),
                 onSignedIn: (entry) => {
-                  // Persist the license, dismiss the gated screen, and
-                  // drop the user into the empty/instruction state so
+                  // Persist the license, dismiss the gated/signin screen,
+                  // and drop the user into the empty/instruction state so
                   // they Alt+Space again with text selected.
                   setLicenseLS(entry);
                   setStatus({ kind: "no_selection" });
+                },
+                onSignInCancel: () => {
+                  // Tray-menu sign-in cancel: hide the overlay so we
+                  // don't leave them staring at it. Esc also works.
+                  void getCurrentWindow().hide();
                 },
                 demoUsed,
               })}
@@ -354,6 +367,7 @@ function isProPillVisible(status: Status, proModal: ProModal): boolean {
     case "rewriting":
     case "replaced":
     case "intro":
+    case "signin":
       return false;
     default:
       return true;
@@ -366,6 +380,7 @@ interface MainHandlers {
   onSignUp: () => void;
   openProModal: () => void;
   onSignedIn: (entry: LicenseCacheEntry) => void;
+  onSignInCancel: () => void;
   demoUsed: number;
 }
 
@@ -387,6 +402,15 @@ function renderStatus(s: Status, h: MainHandlers) {
           onSignUp={h.onSignUp}
           onReserve={h.openProModal}
           onSignedIn={h.onSignedIn}
+        />
+      );
+
+    case "signin":
+      return (
+        <SignInForm
+          onSignedIn={h.onSignedIn}
+          onCancel={h.onSignInCancel}
+          cancelLabel="← cancel"
         />
       );
 
@@ -492,23 +516,26 @@ function IntroScreen({ onDismiss }: { onDismiss: () => void }) {
   );
 }
 
-function GatedScreen({
-  onSignUp,
-  onReserve,
+// Reusable sign-in form. Used by GatedScreen ("after demo cap") and the
+// SignInScreen (tray-menu entry). onCancel is what to do when the user
+// hits "back" — for the gated path it goes back to tier options, for the
+// tray path it closes the overlay.
+function SignInForm({
   onSignedIn,
+  onCancel,
+  cancelLabel,
 }: {
-  onSignUp: () => void;
-  onReserve: () => void;
   onSignedIn: (entry: LicenseCacheEntry) => void;
+  onCancel: () => void;
+  cancelLabel: string;
 }) {
   type Mode =
-    | { kind: "options" }
-    | { kind: "signin"; email: string }
+    | { kind: "input"; email: string }
     | { kind: "checking"; email: string }
     | { kind: "error"; email: string; message: string };
-  const [mode, setMode] = useState<Mode>({ kind: "options" });
+  const [mode, setMode] = useState<Mode>({ kind: "input", email: "" });
 
-  const onSubmitSignIn = async (email: string) => {
+  const onSubmit = async (email: string) => {
     setMode({ kind: "checking", email });
     const license = await checkLicense(email);
     if (license.valid && license.tier !== "free") {
@@ -520,61 +547,77 @@ function GatedScreen({
       kind: "error",
       email,
       message:
-        "We couldn't find a paid account for that email. Check the spelling or grab a Founding spot below.",
+        "We couldn't find a paid account for that email. Check the spelling — or pay below to become a Founding member.",
     });
   };
 
-  if (mode.kind === "signin" || mode.kind === "checking" || mode.kind === "error") {
-    const checking = mode.kind === "checking";
-    return (
-      <div className="flex-1 flex flex-col text-center px-1">
-        <div className="flex flex-col items-center pt-1">
-          <div className="w-10 h-10 rounded-full bg-likho-orange/15 border border-likho-orange/40 flex items-center justify-center mb-2 shadow-[0_0_20px_rgba(249,115,22,0.4)]">
-            <Sparkles className="w-5 h-5 text-likho-orange" strokeWidth={1.75} />
-          </div>
-          <h2 className="text-base text-white font-semibold">Welcome back</h2>
-          <p className="text-xs text-white/65 mt-1 max-w-[320px]">
-            Enter the email you used when paying.
-          </p>
+  const checking = mode.kind === "checking";
+  return (
+    <div className="flex-1 flex flex-col text-center px-1">
+      <div className="flex flex-col items-center pt-1">
+        <div className="w-10 h-10 rounded-full bg-likho-orange/15 border border-likho-orange/40 flex items-center justify-center mb-2 shadow-[0_0_20px_rgba(249,115,22,0.4)]">
+          <Sparkles className="w-5 h-5 text-likho-orange" strokeWidth={1.75} />
         </div>
-
-        <div className="flex-1 flex flex-col justify-center gap-2 mt-3">
-          <input
-            type="email"
-            autoFocus
-            disabled={checking}
-            value={mode.email}
-            onChange={(e) =>
-              setMode({ kind: "signin", email: e.target.value })
-            }
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !checking) {
-                onSubmitSignIn(mode.email);
-              }
-            }}
-            placeholder="you@example.com"
-            className="w-full rounded-full px-4 py-2 bg-white/10 border border-white/25 text-sm text-white placeholder:text-white/40 focus:bg-white/15 focus:border-likho-orange/60 focus:outline-none focus:ring-2 focus:ring-likho-orange/30 disabled:opacity-50"
-          />
-          <button
-            type="button"
-            onClick={() => onSubmitSignIn(mode.email)}
-            disabled={checking || !mode.email.trim()}
-            className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-full bg-likho-orange text-white text-sm font-bold hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {checking ? "Checking…" : "Sign in"}
-          </button>
-          {mode.kind === "error" && (
-            <p className="text-[11px] text-likho-coral/90 px-1">{mode.message}</p>
-          )}
-          <button
-            type="button"
-            onClick={() => setMode({ kind: "options" })}
-            className="text-[11px] text-white/55 hover:text-white/85 mt-1"
-          >
-            ← back
-          </button>
-        </div>
+        <h2 className="text-base text-white font-semibold">Welcome back</h2>
+        <p className="text-xs text-white/65 mt-1 max-w-[320px]">
+          Enter the email you used when paying.
+        </p>
       </div>
+
+      <div className="flex-1 flex flex-col justify-center gap-2 mt-3">
+        <input
+          type="email"
+          autoFocus
+          disabled={checking}
+          value={mode.email}
+          onChange={(e) => setMode({ kind: "input", email: e.target.value })}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !checking) onSubmit(mode.email);
+          }}
+          placeholder="you@example.com"
+          className="w-full rounded-full px-4 py-2 bg-white/10 border border-white/25 text-sm text-white placeholder:text-white/40 focus:bg-white/15 focus:border-likho-orange/60 focus:outline-none focus:ring-2 focus:ring-likho-orange/30 disabled:opacity-50"
+        />
+        <button
+          type="button"
+          onClick={() => onSubmit(mode.email)}
+          disabled={checking || !mode.email.trim()}
+          className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-full bg-likho-orange text-white text-sm font-bold hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {checking ? "Checking…" : "Sign in"}
+        </button>
+        {mode.kind === "error" && (
+          <p className="text-[11px] text-likho-coral/90 px-1">{mode.message}</p>
+        )}
+        <button
+          type="button"
+          onClick={onCancel}
+          className="text-[11px] text-white/55 hover:text-white/85 mt-1"
+        >
+          {cancelLabel}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function GatedScreen({
+  onSignUp,
+  onReserve,
+  onSignedIn,
+}: {
+  onSignUp: () => void;
+  onReserve: () => void;
+  onSignedIn: (entry: LicenseCacheEntry) => void;
+}) {
+  const [mode, setMode] = useState<"options" | "signin">("options");
+
+  if (mode === "signin") {
+    return (
+      <SignInForm
+        onSignedIn={onSignedIn}
+        onCancel={() => setMode("options")}
+        cancelLabel="← back"
+      />
     );
   }
 
@@ -624,7 +667,7 @@ function GatedScreen({
 
         <button
           type="button"
-          onClick={() => setMode({ kind: "signin", email: "" })}
+          onClick={() => setMode("signin")}
           className="text-[11px] text-white/60 hover:text-white/90 mt-1.5 underline-offset-2 hover:underline"
         >
           Already a Founding or Pro member? Sign in

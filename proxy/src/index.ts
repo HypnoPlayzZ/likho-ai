@@ -44,9 +44,11 @@ const FOUNDING_CURRENCY = "INR";
 // more tiers (yearly, etc.), make this a server-side lookup, never trust
 // a plan id from the client.
 const PRO_PLAN_ID = "plan_SjlmaGFnRAAXCw";
-// 12 monthly charges = 1 year cycle. Razorpay requires total_count for
-// subscriptions; pick a long horizon and renew via webhook later.
-const PRO_TOTAL_COUNT = 12;
+// Razorpay requires total_count for subscriptions; we don't actually want
+// auto-cancellation, so pick a long horizon (120 months = 10 years). The
+// subscription will keep auto-renewing until the customer cancels in their
+// Razorpay account email or we cancel it server-side.
+const PRO_TOTAL_COUNT = 120;
 
 // Day 8: founding-member waitlist (PRD pricing — first 50 lifetime at ₹4,900).
 // Total cap is conservative enforcement only; the front-end shows "37 left"
@@ -187,6 +189,13 @@ export default {
     }
     if (url.pathname === "/waitlist/count" && request.method === "GET") {
       return handleWaitlistCount(env);
+    }
+
+    // Live count of paid founding-member spots — drives the "X of 50 left"
+    // counter on the landing page so visitors see real social proof
+    // instead of a hardcoded baseline.
+    if (url.pathname === "/founding/count" && request.method === "GET") {
+      return handleFoundingCount(env);
     }
 
     // Landing-page demo rewrite (Day 9). Same model + system prompt as
@@ -502,6 +511,16 @@ async function handleWaitlistPost(request: Request, env: Env): Promise<Response>
 async function handleWaitlistCount(env: Env): Promise<Response> {
   const total = await getCount(env);
   return json({ total, cap: WAITLIST_CAP, remaining: Math.max(0, WAITLIST_CAP - total) });
+}
+
+// Counts actual paid founding-member records, not waitlist entries. KV's
+// list() is consistent within a single read, and 50 is well under the 1000
+// pagination boundary, so a single call is enough.
+async function handleFoundingCount(env: Env): Promise<Response> {
+  const list = await env.LIKHO_KV.list({ prefix: "founding:payment:" });
+  const paid = list.keys.length;
+  const remaining = Math.max(0, FOUNDING_CAP - paid);
+  return json({ paid, cap: FOUNDING_CAP, remaining, full: paid >= FOUNDING_CAP });
 }
 
 async function getCount(env: Env): Promise<number> {

@@ -13,6 +13,7 @@ type Status =
   | { kind: "loading" }
   | { kind: "verifying" }
   | { kind: "paid" }
+  | { kind: "founding_full" }
   | { kind: "error"; message: string };
 
 export function RazorpayCheckout() {
@@ -35,6 +36,13 @@ export function RazorpayCheckout() {
 
     const orderResult = await createRazorpayOrder(cleaned);
     if (!orderResult.ok || !orderResult.order) {
+      // Special case: 50 founding spots are taken. Show a distinct sold-out
+      // state with a clear next-best-action (Pro tier scroll target),
+      // instead of a generic "couldn't start checkout" error.
+      if (orderResult.error === "founding_full") {
+        setStatus({ kind: "founding_full" });
+        return;
+      }
       setStatus({ kind: "error", message: orderResult.message ?? "Couldn't start checkout." });
       return;
     }
@@ -102,6 +110,24 @@ export function RazorpayCheckout() {
           Payment confirmed. We've recorded your spot — you'll get an email with download details
           and your lifetime licence within a day.
         </p>
+      </div>
+    );
+  }
+
+  if (status.kind === "founding_full") {
+    return (
+      <div className="glass-card rounded-2xl p-5 text-center">
+        <h4 className="text-lg font-bold text-likho-indigo">All 50 founding spots are taken</h4>
+        <p className="text-sm text-likho-slate mt-2 mb-4">
+          The lifetime tier sold out. The Pro tier (₹299/month, unlimited rewrites) is still open
+          and unlocks the same features — same app, same overlay, monthly billing.
+        </p>
+        <a
+          href="#founding"
+          className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-full bg-likho-indigo text-likho-cream text-sm font-bold hover:bg-likho-indigo/90 active:scale-[0.98] transition-all"
+        >
+          Subscribe to Pro instead
+        </a>
       </div>
     );
   }

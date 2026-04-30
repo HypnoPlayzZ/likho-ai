@@ -258,15 +258,19 @@ pub fn run() {
                 .build(),
         )
         .setup(|app| {
-            // Tray menu: version (info-only), Check for updates, Quit.
-            // The Check item emits an event that App.tsx listens for and
-            // runs the same updater check that fires on launch.
+            // Tray menu: version, Sign in (paid users), Check for updates, Quit.
+            // Sign in opens the overlay with a state that prompts for the
+            // email used at payment so paid customers can unlock unlimited
+            // rewrites without first hitting the demo gate.
             let version = env!("CARGO_PKG_VERSION");
             let version_label = format!("Likho v{}", version);
             let version_item = MenuItem::with_id(
                 app, "version", &version_label, false, None::<&str>,
             )?;
             let sep1 = PredefinedMenuItem::separator(app)?;
+            let signin_item = MenuItem::with_id(
+                app, "signin", "Sign in (Founding / Pro)", true, None::<&str>,
+            )?;
             let check_item = MenuItem::with_id(
                 app, "check_updates", "Check for updates…", true, None::<&str>,
             )?;
@@ -276,7 +280,14 @@ pub fn run() {
             )?;
             let menu = Menu::with_items(
                 app,
-                &[&version_item, &sep1, &check_item, &sep2, &quit_item],
+                &[
+                    &version_item,
+                    &sep1,
+                    &signin_item,
+                    &check_item,
+                    &sep2,
+                    &quit_item,
+                ],
             )?;
 
             let _tray = TrayIconBuilder::new()
@@ -286,6 +297,17 @@ pub fn run() {
                     "check_updates" => {
                         if let Some(w) = app_handle.get_webview_window("overlay") {
                             let _ = w.emit("tray:check-updates", ());
+                        }
+                    }
+                    "signin" => {
+                        // Show the overlay near the cursor and tell JS to
+                        // jump into the sign-in state — bypasses the
+                        // "must hit demo gate first" path.
+                        if let Some(window) = app_handle.get_webview_window("overlay") {
+                            position_near_cursor(&window);
+                            let _ = window.show();
+                            let _ = window.emit("overlay-shown", ());
+                            let _ = window.emit("tray:signin", ());
                         }
                     }
                     "quit" => app_handle.exit(0),

@@ -21,6 +21,7 @@ import { InteractiveMockup } from "@/components/InteractiveMockup";
 import { Section } from "@/components/Section";
 import { RazorpayCheckout } from "@/components/RazorpayCheckout";
 import { RazorpayProSubscribe } from "@/components/RazorpayProSubscribe";
+import { FoundingSpotsBadge } from "@/components/FoundingSpotsBadge";
 
 // Stable filename uploaded to every GitHub release. Versioned filenames
 // (e.g. Likho_0.2.0_x64_en-US.msi) would break this URL on the next bump.
@@ -364,12 +365,10 @@ function Pricing() {
             <div className="text-[10px] uppercase tracking-[0.25em] font-bold text-likho-indigo mb-2">
               Lock in your founding spot
             </div>
-            <h4 className="text-xl font-bold text-likho-indigo mb-1">
+            <h4 className="text-xl font-bold text-likho-indigo mb-3">
               Pay ₹4,900 today — lifetime, locked-in price
             </h4>
-            <p className="text-sm text-likho-slate mb-5">
-              50 spots total. After they're gone, the only path in is ₹299/month from launch.
-            </p>
+            <FoundingSpotsBadge />
             <RazorpayCheckout />
           </div>
         </div>

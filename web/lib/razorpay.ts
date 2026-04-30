@@ -15,7 +15,12 @@ export interface RazorpayOrder {
 export interface RazorpayCreateOrderResult {
   ok: boolean;
   order?: RazorpayOrder;
-  error?: "invalid_email" | "razorpay_auth_failed" | "razorpay_error" | "network";
+  error?:
+    | "invalid_email"
+    | "founding_full"
+    | "razorpay_auth_failed"
+    | "razorpay_error"
+    | "network";
   message?: string;
 }
 
@@ -35,6 +40,15 @@ export async function createRazorpayOrder(email: string): Promise<RazorpayCreate
         ok: false,
         error: "razorpay_auth_failed",
         message: "Payment provider unavailable. Please try again later.",
+      };
+    }
+    if (res.status === 409) {
+      return {
+        ok: false,
+        error: "founding_full",
+        message:
+          data.message ??
+          "All 50 founding spots are taken. The Pro tier (₹299/mo) is still open.",
       };
     }
     if (!res.ok || !data.order_id) {
