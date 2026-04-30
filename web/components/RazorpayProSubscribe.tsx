@@ -87,7 +87,7 @@ export function RazorpayProSubscribe() {
         <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-500/40 mb-2">
           <Check className="w-5 h-5 text-emerald-600" strokeWidth={2.5} />
         </div>
-        <h4 className="text-base font-bold text-likho-orange">Subscribed 🎉</h4>
+        <h4 className="text-base font-bold text-likho-indigo">Subscribed 🎉</h4>
         <p className="text-xs text-likho-slate mt-1">
           You'll get an email with download details and your licence key shortly.
         </p>
@@ -111,7 +111,7 @@ export function RazorpayProSubscribe() {
         type="button"
         onClick={onSubscribe}
         disabled={busy}
-        className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-full bg-white/70 hover:bg-white text-likho-orange border border-likho-indigo/25 text-sm font-bold active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+        className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-full bg-white/70 hover:bg-white text-likho-indigo border border-likho-indigo/25 text-sm font-bold active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
       >
         {busy ? (
           <>

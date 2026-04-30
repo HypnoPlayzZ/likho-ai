@@ -49,11 +49,11 @@ function Hero() {
     <section className="relative min-h-screen flex items-center px-6 sm:px-10 lg:px-16 py-16 lg:py-24">
       <div className="max-w-7xl mx-auto w-full grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
         <div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full glass-card text-[11px] uppercase tracking-[0.2em] font-bold text-likho-orange mb-6">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full glass-card text-[11px] uppercase tracking-[0.2em] font-bold text-likho-indigo mb-6">
             <Sparkles className="w-3 h-3" strokeWidth={2.5} />
             Built for Indian English
           </div>
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-likho-orange leading-[1.05] tracking-tight">
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-likho-indigo leading-[1.05] tracking-tight">
             Write better English in any Windows app.
           </h1>
           <p className="mt-5 text-lg text-likho-slate leading-relaxed max-w-xl">
@@ -73,7 +73,7 @@ function Hero() {
             </a>
             <a
               href="#founding"
-              className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full glass-card text-likho-orange text-sm font-bold hover:bg-white/85 active:scale-[0.98] transition-all"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full glass-card text-likho-indigo text-sm font-bold hover:bg-white/85 active:scale-[0.98] transition-all"
             >
               <Sparkles className="w-4 h-4" strokeWidth={2.5} />
               Reserve founding-member access — ₹4,900 lifetime
@@ -100,7 +100,7 @@ function Hero() {
 
 function KeyHint({ children }: { children: React.ReactNode }) {
   return (
-    <kbd className="inline-flex items-center justify-center min-w-[1.75rem] h-6 px-1.5 rounded-md text-[11px] font-mono font-bold uppercase tracking-wide bg-white/85 border border-likho-indigo/30 text-likho-orange shadow-sm">
+    <kbd className="inline-flex items-center justify-center min-w-[1.75rem] h-6 px-1.5 rounded-md text-[11px] font-mono font-bold uppercase tracking-wide bg-white/85 border border-likho-indigo/30 text-likho-indigo shadow-sm">
       {children}
     </kbd>
   );
@@ -140,7 +140,7 @@ function Problem() {
               <div className="w-9 h-9 rounded-full bg-likho-coral/15 border border-likho-coral/40 flex items-center justify-center mb-3">
                 <X className="w-5 h-5 text-likho-coral" strokeWidth={2.5} />
               </div>
-              <h3 className="text-lg font-bold text-likho-orange leading-snug">
+              <h3 className="text-lg font-bold text-likho-indigo leading-snug">
                 {c.title}
               </h3>
               <p className="mt-2 text-sm text-likho-slate leading-relaxed">{c.body}</p>
@@ -183,15 +183,15 @@ function HowItWorks() {
           {steps.map((s, i) => (
             <div key={s.title} className="glass-card rounded-2xl p-6">
               <div className="flex items-center gap-3 mb-3">
-                <div className="text-[10px] uppercase tracking-[0.2em] font-bold text-likho-orange/70">
+                <div className="text-[10px] uppercase tracking-[0.2em] font-bold text-likho-indigo/70">
                   Step {i + 1}
                 </div>
                 <span className="h-px flex-1 bg-likho-indigo/15" />
               </div>
               <div className="w-12 h-12 rounded-2xl bg-likho-indigo/10 border border-likho-indigo/25 flex items-center justify-center mb-3">
-                <s.Icon className="w-6 h-6 text-likho-orange" strokeWidth={2} />
+                <s.Icon className="w-6 h-6 text-likho-indigo" strokeWidth={2} />
               </div>
-              <h3 className="text-lg font-bold text-likho-orange">{s.title}</h3>
+              <h3 className="text-lg font-bold text-likho-indigo">{s.title}</h3>
               <p className="mt-2 text-sm text-likho-slate leading-relaxed">{s.body}</p>
             </div>
           ))}
@@ -247,9 +247,9 @@ function Features() {
           {features.map((f) => (
             <div key={f.title} className="glass-card rounded-2xl p-5">
               <div className="w-10 h-10 rounded-xl bg-likho-indigo/10 border border-likho-indigo/25 flex items-center justify-center mb-3">
-                <f.Icon className="w-5 h-5 text-likho-orange" strokeWidth={2} />
+                <f.Icon className="w-5 h-5 text-likho-indigo" strokeWidth={2} />
               </div>
-              <h3 className="text-base font-bold text-likho-orange">{f.title}</h3>
+              <h3 className="text-base font-bold text-likho-indigo">{f.title}</h3>
               <p className="mt-1.5 text-sm text-likho-slate leading-relaxed">{f.body}</p>
             </div>
           ))}
@@ -312,7 +312,7 @@ function Pricing() {
               }`}
             >
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-bold text-likho-orange">{t.name}</h3>
+                <h3 className="text-lg font-bold text-likho-indigo">{t.name}</h3>
                 {t.featured && (
                   <span className="inline-flex items-center gap-1 text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full bg-likho-indigo text-likho-cream">
                     <Sparkles className="w-2.5 h-2.5" strokeWidth={2.5} /> Best deal
@@ -323,14 +323,14 @@ function Pricing() {
                 {t.tag}
               </div>
               <div className="mt-5 flex items-baseline gap-1.5">
-                <span className="text-4xl font-extrabold text-likho-orange">{t.price}</span>
+                <span className="text-4xl font-extrabold text-likho-indigo">{t.price}</span>
                 <span className="text-sm text-likho-slate">{t.sub}</span>
               </div>
               <ul className="mt-5 space-y-2 text-sm text-likho-ink">
                 {t.bullets.map((b) => (
                   <li key={b} className="flex items-start gap-2">
                     <Check
-                      className="w-4 h-4 text-likho-orange shrink-0 mt-0.5"
+                      className="w-4 h-4 text-likho-indigo shrink-0 mt-0.5"
                       strokeWidth={2.5}
                     />
                     <span>{b}</span>
@@ -343,7 +343,7 @@ function Pricing() {
                   className={`mt-6 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-full text-sm font-bold transition-all ${
                     t.featured
                       ? "bg-likho-indigo text-likho-cream hover:bg-likho-indigo/90"
-                      : "bg-white/70 hover:bg-white text-likho-orange border border-likho-indigo/25"
+                      : "bg-white/70 hover:bg-white text-likho-indigo border border-likho-indigo/25"
                   }`}
                 >
                   {t.cta.label}
@@ -361,10 +361,10 @@ function Pricing() {
 
         <div id="founding-form" className="mt-12 max-w-xl mx-auto">
           <div className="glass-card rounded-2xl p-6">
-            <div className="text-[10px] uppercase tracking-[0.25em] font-bold text-likho-orange mb-2">
+            <div className="text-[10px] uppercase tracking-[0.25em] font-bold text-likho-indigo mb-2">
               Lock in your founding spot
             </div>
-            <h4 className="text-xl font-bold text-likho-orange mb-1">
+            <h4 className="text-xl font-bold text-likho-indigo mb-1">
               Pay ₹4,900 today — lifetime, locked-in price
             </h4>
             <p className="text-sm text-likho-slate mb-5">
@@ -385,7 +385,7 @@ function FounderNote() {
     <Section className="px-6 sm:px-10 lg:px-16 py-20">
       <div className="max-w-3xl mx-auto">
         <div className="glass-card rounded-3xl p-8 sm:p-10 relative">
-          <div className="text-[10px] uppercase tracking-[0.25em] font-bold text-likho-orange mb-3">
+          <div className="text-[10px] uppercase tracking-[0.25em] font-bold text-likho-indigo mb-3">
             From the founder
           </div>
           <p className="text-lg text-likho-ink leading-relaxed">
@@ -400,11 +400,11 @@ function FounderNote() {
             If that sounds like you, I'd love for you to try it.
           </p>
           <div className="mt-6 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-likho-indigo/15 border border-likho-indigo/30 flex items-center justify-center text-likho-orange font-bold">
+            <div className="w-10 h-10 rounded-full bg-likho-indigo/15 border border-likho-indigo/30 flex items-center justify-center text-likho-indigo font-bold">
               C
             </div>
             <div>
-              <div className="text-sm font-bold text-likho-orange">Chetan</div>
+              <div className="text-sm font-bold text-likho-indigo">Chetan</div>
               <div className="text-xs text-likho-slate">Founder, Likho.ai</div>
             </div>
           </div>
@@ -450,8 +450,8 @@ function FAQ() {
               className="glass-card rounded-2xl p-5 group"
             >
               <summary className="flex items-center justify-between cursor-pointer list-none">
-                <h3 className="text-base font-bold text-likho-orange pr-4">{it.q}</h3>
-                <span className="shrink-0 w-6 h-6 rounded-full bg-likho-indigo/10 border border-likho-indigo/25 flex items-center justify-center text-likho-orange font-bold transition-transform group-open:rotate-45">
+                <h3 className="text-base font-bold text-likho-indigo pr-4">{it.q}</h3>
+                <span className="shrink-0 w-6 h-6 rounded-full bg-likho-indigo/10 border border-likho-indigo/25 flex items-center justify-center text-likho-indigo font-bold transition-transform group-open:rotate-45">
                   +
                 </span>
               </summary>
@@ -471,7 +471,7 @@ function Footer() {
     <footer className="px-6 sm:px-10 lg:px-16 pt-12 pb-8">
       <div className="max-w-7xl mx-auto glass-card rounded-2xl p-6 sm:p-8 flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between">
         <div>
-          <div className="text-base font-extrabold text-likho-orange tracking-tight">
+          <div className="text-base font-extrabold text-likho-indigo tracking-tight">
             Likho<span className="text-likho-orange">.</span>ai
           </div>
           <p className="mt-1 text-xs text-likho-slate">
@@ -508,7 +508,7 @@ function FooterLink({
       href={href}
       target={href.startsWith("http") ? "_blank" : undefined}
       rel={href.startsWith("http") ? "noopener noreferrer" : undefined}
-      className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-white/70 hover:bg-white border border-likho-indigo/15 text-likho-orange transition-colors"
+      className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-white/70 hover:bg-white border border-likho-indigo/15 text-likho-indigo transition-colors"
       title={label}
     >
       {children}
@@ -529,10 +529,10 @@ function SectionHeading({
 }) {
   return (
     <div className="text-center">
-      <div className="inline-block text-[11px] uppercase tracking-[0.25em] font-bold text-likho-orange">
+      <div className="inline-block text-[11px] uppercase tracking-[0.25em] font-bold text-likho-indigo">
         {eyebrow}
       </div>
-      <h2 className="mt-3 text-3xl sm:text-4xl font-extrabold text-likho-orange leading-tight tracking-tight">
+      <h2 className="mt-3 text-3xl sm:text-4xl font-extrabold text-likho-indigo leading-tight tracking-tight">
         {title}
       </h2>
       {subtitle && (

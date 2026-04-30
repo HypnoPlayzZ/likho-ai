@@ -84,7 +84,7 @@ export function RazorpayCheckout() {
         <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-500/20 border border-emerald-500/40 mb-3">
           <Check className="w-6 h-6 text-emerald-600" strokeWidth={2.5} />
         </div>
-        <h4 className="text-lg font-bold text-likho-orange">You're a founding member 🎉</h4>
+        <h4 className="text-lg font-bold text-likho-indigo">You're a founding member 🎉</h4>
         <p className="text-sm text-likho-slate mt-2">
           Payment confirmed. We've recorded your spot — you'll get an email with download details
           and your lifetime licence within a day.
