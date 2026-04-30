@@ -40,7 +40,7 @@ export default async function Image() {
             fontSize: "24px",
             fontWeight: 800,
             letterSpacing: "0.25em",
-            color: "#3730A3",
+            color: "#EA580C",
             textTransform: "uppercase",
           }}
         >
@@ -59,7 +59,7 @@ export default async function Image() {
             borderRadius: "32px",
             backgroundColor: "rgba(255, 255, 255, 0.65)",
             border: "1px solid rgba(255, 255, 255, 0.85)",
-            boxShadow: "0 24px 60px -12px rgba(55, 48, 163, 0.25)",
+            boxShadow: "0 24px 60px -12px rgba(234, 88, 12, 0.25)",
           }}
         >
           <div
@@ -70,7 +70,7 @@ export default async function Image() {
               fontSize: "18px",
               fontWeight: 700,
               letterSpacing: "0.18em",
-              color: "#3730A3",
+              color: "#EA580C",
               textTransform: "uppercase",
               marginBottom: "16px",
             }}
@@ -92,7 +92,7 @@ export default async function Image() {
               fontSize: "78px",
               lineHeight: 1.05,
               fontWeight: 800,
-              color: "#3730A3",
+              color: "#EA580C",
               letterSpacing: "-0.02em",
               display: "flex",
             }}

@@ -36,7 +36,7 @@ export function WaitlistForm() {
         <div className="w-12 h-12 rounded-full bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center mx-auto mb-3">
           <Check className="w-6 h-6 text-emerald-600" strokeWidth={2.5} />
         </div>
-        <h3 className="text-lg text-likho-indigo font-bold">
+        <h3 className="text-lg text-likho-orange font-bold">
           You're #{state.position} on the founding-member list
         </h3>
         <p className="text-sm text-likho-slate mt-2 max-w-sm mx-auto">
@@ -51,8 +51,8 @@ export function WaitlistForm() {
   return (
     <form onSubmit={onSubmit} className="glass-card rounded-2xl p-5 sm:p-6">
       <div className="flex items-center gap-2 mb-2">
-        <Sparkles className="w-4 h-4 text-likho-indigo" strokeWidth={2.5} />
-        <h3 className="text-sm uppercase tracking-[0.18em] font-bold text-likho-indigo">
+        <Sparkles className="w-4 h-4 text-likho-orange" strokeWidth={2.5} />
+        <h3 className="text-sm uppercase tracking-[0.18em] font-bold text-likho-orange">
           Reserve my founding-member spot
         </h3>
       </div>

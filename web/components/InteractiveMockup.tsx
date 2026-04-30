@@ -116,7 +116,7 @@ export function InteractiveMockup() {
   return (
     <div className="glass-card-strong rounded-3xl p-5 w-full max-w-md">
       <div className="flex items-center gap-2 mb-4">
-        <div className="text-[10px] font-bold text-likho-indigo tracking-[0.25em] uppercase">
+        <div className="text-[10px] font-bold text-likho-orange tracking-[0.25em] uppercase">
           Likho
         </div>
         <span className="h-px flex-1 bg-likho-indigo/15" />
@@ -146,11 +146,11 @@ export function InteractiveMockup() {
                   className="group block w-full text-left rounded-xl px-3 py-2.5 bg-white/55 hover:bg-white/85 border border-likho-indigo/15 hover:border-likho-indigo/40 transition-all hover:scale-[1.01] active:scale-[1.0]"
                 >
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[9px] uppercase tracking-[0.18em] font-bold text-likho-indigo">
+                    <span className="text-[9px] uppercase tracking-[0.18em] font-bold text-likho-orange">
                       {s.label}
                     </span>
                     <ArrowRight
-                      className="ml-auto w-3.5 h-3.5 text-likho-slate group-hover:text-likho-indigo group-hover:translate-x-0.5 transition-all"
+                      className="ml-auto w-3.5 h-3.5 text-likho-slate group-hover:text-likho-orange group-hover:translate-x-0.5 transition-all"
                       strokeWidth={2.5}
                     />
                   </div>
@@ -208,13 +208,13 @@ export function InteractiveMockup() {
               <button
                 type="button"
                 onClick={onReset}
-                className="text-xs text-likho-indigo font-semibold hover:underline"
+                className="text-xs text-likho-orange font-semibold hover:underline"
               >
                 ← Try another sample
               </button>
               <a
                 href="#download"
-                className="inline-flex items-center gap-1 text-[11px] font-bold text-likho-indigo hover:text-likho-orange transition-colors"
+                className="inline-flex items-center gap-1 text-[11px] font-bold text-likho-orange hover:text-likho-orange transition-colors"
               >
                 <Download className="w-3 h-3" strokeWidth={2.5} />
                 Try your own text
@@ -244,7 +244,7 @@ function OriginalSnippet({
       </p>
       {lang && lang !== "english" && (
         <span
-          className="shrink-0 inline-flex items-center gap-1 text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full bg-likho-indigo/10 border border-likho-indigo/30 text-likho-indigo"
+          className="shrink-0 inline-flex items-center gap-1 text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full bg-likho-indigo/10 border border-likho-indigo/30 text-likho-orange"
           title={lang === "hinglish" ? "Detected: Hinglish" : "Detected: mixed"}
         >
           <Languages className="w-2.5 h-2.5" strokeWidth={2.5} />
@@ -277,11 +277,11 @@ function ToneCard({
       className="group block w-full text-left rounded-xl p-2.5 bg-white/55 hover:bg-white/85 border border-likho-indigo/15 hover:border-likho-indigo/40 transition-all hover:scale-[1.01] active:scale-[1.0]"
     >
       <div className="flex items-center gap-2 mb-1">
-        <Icon className="w-3.5 h-3.5 text-likho-indigo shrink-0" strokeWidth={2.25} />
-        <span className="text-[10px] uppercase tracking-[0.18em] font-bold text-likho-indigo">
+        <Icon className="w-3.5 h-3.5 text-likho-orange shrink-0" strokeWidth={2.25} />
+        <span className="text-[10px] uppercase tracking-[0.18em] font-bold text-likho-orange">
           {label}
         </span>
-        <span className="ml-auto text-[10px] text-likho-slate group-hover:text-likho-indigo font-semibold transition-colors">
+        <span className="ml-auto text-[10px] text-likho-slate group-hover:text-likho-orange font-semibold transition-colors">
           {copied ? (
             <span className="inline-flex items-center gap-1 text-emerald-600">
               <Check className="w-3 h-3" strokeWidth={3} /> Copied
@@ -303,8 +303,8 @@ function SkeletonCard({ tone }: { tone: Tone }) {
   return (
     <div className="rounded-xl p-2.5 bg-white/40 border border-likho-indigo/10">
       <div className="flex items-center gap-2 mb-2">
-        <Icon className="w-3.5 h-3.5 text-likho-indigo/50" strokeWidth={2.25} />
-        <span className="text-[10px] uppercase tracking-[0.18em] font-bold text-likho-indigo/50">
+        <Icon className="w-3.5 h-3.5 text-likho-orange/50" strokeWidth={2.25} />
+        <span className="text-[10px] uppercase tracking-[0.18em] font-bold text-likho-orange/50">
           {label}
         </span>
       </div>
@@ -318,6 +318,6 @@ function SkeletonCard({ tone }: { tone: Tone }) {
 
 export function HeroSparkle() {
   return (
-    <Sparkles className="w-3.5 h-3.5 text-likho-indigo" strokeWidth={2.5} />
+    <Sparkles className="w-3.5 h-3.5 text-likho-orange" strokeWidth={2.5} />
   );
 }
