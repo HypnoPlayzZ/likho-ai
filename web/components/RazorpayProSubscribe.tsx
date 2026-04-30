@@ -54,20 +54,28 @@ export function RazorpayProSubscribe() {
       },
       handler: async (response) => {
         setStatus({ kind: "verifying" });
-        const verifyResult = await verifyRazorpayPayment(
-          {
-            razorpay_payment_id: response.razorpay_payment_id,
-            razorpay_signature: response.razorpay_signature,
-            razorpay_subscription_id: response.razorpay_subscription_id,
-          },
-          cleaned,
-        );
+        const fields = {
+          razorpay_payment_id: response.razorpay_payment_id,
+          razorpay_signature: response.razorpay_signature,
+          razorpay_subscription_id: response.razorpay_subscription_id,
+        };
+        // Retry verification — first month's payment has cleared on Razorpay
+        // side, so a transient failure here shouldn't strand the user.
+        let verifyResult = await verifyRazorpayPayment(fields, cleaned);
+        for (let attempt = 1; attempt < 3 && !verifyResult.ok; attempt++) {
+          await new Promise((r) => setTimeout(r, 800 * attempt));
+          verifyResult = await verifyRazorpayPayment(fields, cleaned);
+        }
         if (verifyResult.ok) {
           setStatus({ kind: "subscribed" });
         } else {
+          console.error("[razorpay] subscription_verify_failed_after_charge", response);
           setStatus({
             kind: "error",
-            message: verifyResult.message ?? "Subscription couldn't be verified.",
+            message:
+              `Subscription mandate set up (${response.razorpay_payment_id}) but ` +
+              `we couldn't confirm it on our end. Email founder@likho.ai with this ` +
+              `payment ID and we'll activate your account immediately.`,
           });
         }
       },

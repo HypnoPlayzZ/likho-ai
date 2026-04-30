@@ -184,7 +184,22 @@ function App() {
         appWindow.hide();
       }, 1000);
     } catch (e) {
+      // The paste invoke can fail if focus didn't transfer back to the
+      // source app cleanly, or if clipboard is locked. The rewrite text
+      // is still on the clipboard so the user can paste manually — tell
+      // them that instead of leaving them at the "done" screen wondering
+      // why nothing happened.
       console.error("replace_selection failed", e);
+      setStatus((prev) =>
+        prev.kind === "done"
+          ? {
+              kind: "error",
+              original: prev.original,
+              message:
+                "Couldn't paste automatically. The text is on your clipboard — paste with Ctrl+V.",
+            }
+          : prev,
+      );
     }
   };
 
@@ -763,12 +778,25 @@ type RewriteResult =
   | { ok: false; message: string };
 
 async function fetchRewrites(text: string): Promise<RewriteResult> {
+  // 12-second hard ceiling. Gemini Flash typically replies in 2-3s; anything
+  // past 10s is almost certainly a hung Worker or network. Surfacing a
+  // timeout is much better UX than an indefinite skeleton loader.
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 12_000);
   try {
     const res = await fetch(PROXY_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text }),
+      signal: controller.signal,
     });
+    if (res.status === 429) {
+      return {
+        ok: false,
+        message:
+          "Daily rewrite limit reached. The limit resets each day at midnight UTC.",
+      };
+    }
     if (!res.ok) {
       if (res.status === 502) {
         return {
@@ -798,11 +826,19 @@ async function fetchRewrites(text: string): Promise<RewriteResult> {
         detected_language: lang,
       },
     };
-  } catch {
+  } catch (err) {
+    if ((err as Error).name === "AbortError") {
+      return {
+        ok: false,
+        message: "AI took too long to respond. Please try again.",
+      };
+    }
     return {
       ok: false,
-      message: "Looks like the AI service can't be reached. Is the proxy running?",
+      message: "Looks like the AI service can't be reached. Check your connection.",
     };
+  } finally {
+    window.clearTimeout(timeoutId);
   }
 }
 

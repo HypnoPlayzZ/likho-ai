@@ -8,8 +8,22 @@ interface Env {
   GEMINI_API_KEY: string;
   RAZORPAY_KEY_ID: string;
   RAZORPAY_KEY_SECRET: string;
+  RAZORPAY_WEBHOOK_SECRET?: string;
   LIKHO_KV: KVNamespace;
 }
+
+// Hard cap for the "first 50 founding spots" promise. Enforced on order
+// creation by counting actual founding:payment:* keys in KV.
+const FOUNDING_CAP = 50;
+
+// Per-IP daily limit on /rewrite. Real users won't hit it; scrapers will.
+// Until Day 11+ adds Clerk JWT auth this is the only thing protecting the
+// Gemini key from being drained by anyone who finds the Worker URL.
+const REWRITE_DAILY_CAP_PER_IP = 100;
+
+// Body size limit on /rewrite to prevent denial-of-wallet via huge JSON
+// payloads (Workers charge per CPU-ms; parsing 50 MB JSON is not free).
+const MAX_REWRITE_BODY_BYTES = 100_000;
 
 // Founding-member price in paise (₹4,900 = 490,000 paise). Locked here so
 // the client can't pass an arbitrary amount — the order endpoint ignores
@@ -108,9 +122,37 @@ const REWRITE_SCHEMA = {
   required: ["professional", "concise", "friendly", "detected_language"],
 } as const;
 
+// Origins allowed to hit /razorpay/* (creates/verifies real payments).
+// /rewrite stays origin-open because the Tauri WebView2 sends a "tauri://"
+// origin that browsers can't replicate, and per-IP rate-limiting now
+// covers the abuse vector that wide-open CORS used to enable.
+const RAZORPAY_ALLOWED_ORIGINS = new Set<string>([
+  "https://web-three-omega-81.vercel.app",
+  "https://web-hypnoplayzz-hypnoplayzzs-projects.vercel.app",
+  "https://web-hypnoplayzzs-projects.vercel.app",
+  "https://likho.ai",
+  "https://www.likho.ai",
+  "http://localhost:3000",
+]);
+
+function corsHeaders(request: Request, lockToAllowedOrigins = false): Record<string, string> {
+  const origin = request.headers.get("Origin") || "";
+  let allow = "*";
+  if (lockToAllowedOrigins) {
+    allow = RAZORPAY_ALLOWED_ORIGINS.has(origin) ? origin : "";
+  }
+  return {
+    "Access-Control-Allow-Origin": allow,
+    "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+    Vary: "Origin",
+  };
+}
+
+// Backwards-compat alias for endpoints that don't need origin-locking.
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
@@ -125,11 +167,12 @@ interface Rewrites {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    if (request.method === "OPTIONS") {
-      return new Response(null, { headers: CORS_HEADERS });
-    }
-
     const url = new URL(request.url);
+    const lockOrigin = url.pathname.startsWith("/razorpay/");
+
+    if (request.method === "OPTIONS") {
+      return new Response(null, { headers: corsHeaders(request, lockOrigin) });
+    }
 
     // Founding-member waitlist endpoints (Day 8).
     if (url.pathname === "/waitlist" && request.method === "POST") {
@@ -150,10 +193,12 @@ export default {
       return handleRewrite(request, env, "app");
     }
 
-    // Razorpay checkout. Three endpoints:
+    // Razorpay checkout. Four endpoints:
     //   POST /razorpay/order        — create order (founding-member, one-time)
     //   POST /razorpay/subscription — create subscription (Pro, monthly recurring)
     //   POST /razorpay/verify       — verify signature for either flow
+    //   POST /razorpay/webhook      — Razorpay-initiated lifecycle events
+    //                                 (subscription.charged / cancelled / failed, etc.)
     if (url.pathname === "/razorpay/order" && request.method === "POST") {
       return handleRazorpayCreateOrder(request, env);
     }
@@ -162,6 +207,9 @@ export default {
     }
     if (url.pathname === "/razorpay/verify" && request.method === "POST") {
       return handleRazorpayVerify(request, env);
+    }
+    if (url.pathname === "/razorpay/webhook" && request.method === "POST") {
+      return handleRazorpayWebhook(request, env);
     }
 
     return json({ error: "not_found" }, 404);
@@ -176,6 +224,32 @@ async function handleRewrite(
   env: Env,
   source: "app" | "landing",
 ): Promise<Response> {
+  // Body size guard before parsing — blocks denial-of-wallet via huge JSON.
+  const contentLength = parseInt(request.headers.get("Content-Length") || "0", 10);
+  if (contentLength > MAX_REWRITE_BODY_BYTES) {
+    return json({ error: "body_too_large", limit: MAX_REWRITE_BODY_BYTES }, 413);
+  }
+
+  // Per-IP daily cap on the desktop /rewrite endpoint. The landing demo path
+  // already runs through handleLandingRewrite which has its own (lower) cap;
+  // this cap fires only when source === "app".
+  if (source === "app") {
+    const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+    const today = new Date().toISOString().slice(0, 10);
+    const counterKey = `rw_ip:${ip}:${today}`;
+    const used = parseInt((await env.LIKHO_KV.get(counterKey)) || "0", 10) || 0;
+    if (used >= REWRITE_DAILY_CAP_PER_IP) {
+      console.log(`[rewrite] rate_limited ip_chars=${ip.length} used=${used} src=${source}`);
+      return json(
+        {
+          error: "rate_limited",
+          message: `Daily rewrite limit (${REWRITE_DAILY_CAP_PER_IP}) reached.`,
+        },
+        429,
+      );
+    }
+  }
+
   let body: { text?: unknown };
   try {
     body = await request.json();
@@ -250,6 +324,19 @@ async function handleRewrite(
       ` lang=${rewrites.detected_language}` +
       ` src=${source}`,
   );
+
+  // Increment the per-IP counter on successful rewrites for the desktop
+  // path. Errors (validation / Gemini fail) intentionally don't burn quota.
+  if (source === "app") {
+    const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+    const today = new Date().toISOString().slice(0, 10);
+    const counterKey = `rw_ip:${ip}:${today}`;
+    const used = parseInt((await env.LIKHO_KV.get(counterKey)) || "0", 10) || 0;
+    await env.LIKHO_KV.put(counterKey, String(used + 1), {
+      expirationTtl: 60 * 60 * 26,
+    });
+  }
+
   return json(rewrites);
 }
 
@@ -319,11 +406,19 @@ function parseRewrites(raw: string): Rewrites | null {
   return { professional: p, concise: c, friendly: f, detected_language };
 }
 
-function json(payload: unknown, status = 200): Response {
-  return new Response(JSON.stringify(payload), {
-    status,
-    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
-  });
+function json(
+  payload: unknown,
+  status = 200,
+  request?: Request,
+  lockOrigin = false,
+): Response {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (request) {
+    Object.assign(headers, corsHeaders(request, lockOrigin));
+  } else {
+    Object.assign(headers, CORS_HEADERS);
+  }
+  return new Response(JSON.stringify(payload), { status, headers });
 }
 
 // ---------- Waitlist (Day 8) ----------
@@ -415,22 +510,43 @@ function isValidEmail(s: string): boolean {
 async function handleRazorpayCreateOrder(request: Request, env: Env): Promise<Response> {
   if (!env.RAZORPAY_KEY_ID || !env.RAZORPAY_KEY_SECRET) {
     console.log("[razorpay] missing_credentials");
-    return json({ error: "razorpay_not_configured" }, 500);
+    return json({ error: "razorpay_not_configured" }, 500, request, true);
   }
 
   let body: { email?: unknown };
   try {
     body = await request.json();
   } catch {
-    return json({ error: "invalid_json" }, 400);
+    return json({ error: "invalid_json" }, 400, request, true);
   }
 
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   if (!email || !isValidEmail(email)) {
-    return json({ error: "invalid_email" }, 400);
+    return json({ error: "invalid_email" }, 400, request, true);
   }
 
-  const receipt = `founding_${Date.now()}`;
+  // Hard-cap at 50 founding-member spots. Counted by listing actual paid
+  // KV records — read-modify-write on a counter key would race under
+  // concurrent traffic and could over-issue spots. KV list() is consistent
+  // within a single read; founding-tier max is small so pagination isn't
+  // a concern.
+  const paidList = await env.LIKHO_KV.list({ prefix: "founding:payment:" });
+  if (paidList.keys.length >= FOUNDING_CAP) {
+    console.log(`[razorpay] founding_full count=${paidList.keys.length}`);
+    return json(
+      {
+        error: "founding_full",
+        message: "All 50 founding spots are taken. Welcome to Pro instead?",
+      },
+      409,
+      request,
+      true,
+    );
+  }
+
+  // crypto.randomUUID gives a unique receipt even under burst concurrency
+  // (Date.now() can collide within the same millisecond).
+  const receipt = `founding_${crypto.randomUUID()}`;
   const auth = "Basic " + btoa(`${env.RAZORPAY_KEY_ID}:${env.RAZORPAY_KEY_SECRET}`);
 
   let upstream: Response;
@@ -450,33 +566,38 @@ async function handleRazorpayCreateOrder(request: Request, env: Env): Promise<Re
     });
   } catch (e) {
     console.log(`[razorpay] order_network_error msg=${(e as Error).message}`);
-    return json({ error: "razorpay_unreachable" }, 502);
+    return json({ error: "razorpay_unreachable" }, 502, request, true);
   }
 
   if (upstream.status === 401 || upstream.status === 403) {
     console.log(`[razorpay] auth_error status=${upstream.status}`);
-    return json({ error: "razorpay_auth_failed" }, 401);
+    return json({ error: "razorpay_auth_failed" }, 401, request, true);
   }
   if (!upstream.ok) {
     const errBody = await upstream.text().catch(() => "");
     console.log(`[razorpay] order_error status=${upstream.status} body=${errBody.slice(0, 200)}`);
-    return json({ error: "razorpay_error", status: upstream.status }, 500);
+    return json({ error: "razorpay_error", status: upstream.status }, 500, request, true);
   }
 
   const order = (await upstream.json()) as { id?: string; amount?: number; currency?: string };
   if (!order.id) {
     console.log("[razorpay] order_missing_id");
-    return json({ error: "razorpay_bad_response" }, 502);
+    return json({ error: "razorpay_bad_response" }, 502, request, true);
   }
 
   console.log(`[razorpay] order_created id=${order.id} email_chars=${email.length}`);
-  return json({
-    order_id: order.id,
-    amount: order.amount ?? FOUNDING_AMOUNT_PAISE,
-    currency: order.currency ?? FOUNDING_CURRENCY,
-    key_id: env.RAZORPAY_KEY_ID,
-    receipt,
-  });
+  return json(
+    {
+      order_id: order.id,
+      amount: order.amount ?? FOUNDING_AMOUNT_PAISE,
+      currency: order.currency ?? FOUNDING_CURRENCY,
+      key_id: env.RAZORPAY_KEY_ID,
+      receipt,
+    },
+    200,
+    request,
+    true,
+  );
 }
 
 async function handleRazorpayCreateSubscription(
@@ -485,19 +606,19 @@ async function handleRazorpayCreateSubscription(
 ): Promise<Response> {
   if (!env.RAZORPAY_KEY_ID || !env.RAZORPAY_KEY_SECRET) {
     console.log("[razorpay] missing_credentials");
-    return json({ error: "razorpay_not_configured" }, 500);
+    return json({ error: "razorpay_not_configured" }, 500, request, true);
   }
 
   let body: { email?: unknown };
   try {
     body = await request.json();
   } catch {
-    return json({ error: "invalid_json" }, 400);
+    return json({ error: "invalid_json" }, 400, request, true);
   }
 
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   if (!email || !isValidEmail(email)) {
-    return json({ error: "invalid_email" }, 400);
+    return json({ error: "invalid_email" }, 400, request, true);
   }
 
   const auth = "Basic " + btoa(`${env.RAZORPAY_KEY_ID}:${env.RAZORPAY_KEY_SECRET}`);
@@ -516,37 +637,42 @@ async function handleRazorpayCreateSubscription(
     });
   } catch (e) {
     console.log(`[razorpay] subscription_network_error msg=${(e as Error).message}`);
-    return json({ error: "razorpay_unreachable" }, 502);
+    return json({ error: "razorpay_unreachable" }, 502, request, true);
   }
 
   if (upstream.status === 401 || upstream.status === 403) {
-    return json({ error: "razorpay_auth_failed" }, 401);
+    return json({ error: "razorpay_auth_failed" }, 401, request, true);
   }
   if (!upstream.ok) {
     const errBody = await upstream.text().catch(() => "");
     console.log(
       `[razorpay] subscription_error status=${upstream.status} body=${errBody.slice(0, 300)}`,
     );
-    return json({ error: "razorpay_error", status: upstream.status }, 500);
+    return json({ error: "razorpay_error", status: upstream.status }, 500, request, true);
   }
 
   const sub = (await upstream.json()) as { id?: string; status?: string };
   if (!sub.id) {
-    return json({ error: "razorpay_bad_response" }, 502);
+    return json({ error: "razorpay_bad_response" }, 502, request, true);
   }
 
   console.log(`[razorpay] subscription_created id=${sub.id} email_chars=${email.length}`);
-  return json({
-    subscription_id: sub.id,
-    plan_id: PRO_PLAN_ID,
-    key_id: env.RAZORPAY_KEY_ID,
-    status: sub.status ?? "created",
-  });
+  return json(
+    {
+      subscription_id: sub.id,
+      plan_id: PRO_PLAN_ID,
+      key_id: env.RAZORPAY_KEY_ID,
+      status: sub.status ?? "created",
+    },
+    200,
+    request,
+    true,
+  );
 }
 
 async function handleRazorpayVerify(request: Request, env: Env): Promise<Response> {
   if (!env.RAZORPAY_KEY_SECRET) {
-    return json({ error: "razorpay_not_configured" }, 500);
+    return json({ error: "razorpay_not_configured" }, 500, request, true);
   }
 
   let body: {
@@ -559,7 +685,7 @@ async function handleRazorpayVerify(request: Request, env: Env): Promise<Respons
   try {
     body = await request.json();
   } catch {
-    return json({ error: "invalid_json" }, 400);
+    return json({ error: "invalid_json" }, 400, request, true);
   }
 
   const paymentId = typeof body.razorpay_payment_id === "string" ? body.razorpay_payment_id : "";
@@ -570,7 +696,7 @@ async function handleRazorpayVerify(request: Request, env: Env): Promise<Respons
     typeof body.razorpay_subscription_id === "string" ? body.razorpay_subscription_id : "";
 
   if (!paymentId || !signature || (!orderId && !subscriptionId)) {
-    return json({ error: "missing_fields" }, 400);
+    return json({ error: "missing_fields" }, 400, request, true);
   }
 
   // Two signature schemes:
@@ -585,9 +711,12 @@ async function handleRazorpayVerify(request: Request, env: Env): Promise<Respons
     console.log(
       `[razorpay] sig_mismatch payment=${paymentId} ${subscriptionId ? `sub=${subscriptionId}` : `order=${orderId}`}`,
     );
-    return json({ error: "signature_mismatch" }, 400);
+    return json({ error: "signature_mismatch" }, 400, request, true);
   }
 
+  // Counts are derived via KV list() in the order/founding handlers, so
+  // we don't maintain a counter key here. Eliminates the read-modify-write
+  // race that could lose increments under concurrent verification.
   if (subscriptionId) {
     // Pro subscription mandate authorized.
     const recordKey = `pro:subscription:${subscriptionId}`;
@@ -602,14 +731,16 @@ async function handleRazorpayVerify(request: Request, env: Env): Promise<Respons
           ts: Date.now(),
         }),
       );
-      const prev = await env.LIKHO_KV.get("pro:_count");
-      const next = (prev ? parseInt(prev, 10) || 0 : 0) + 1;
-      await env.LIKHO_KV.put("pro:_count", String(next));
       console.log(
-        `[razorpay] pro_subscribed #${next} sub=${subscriptionId} email_chars=${email.length}`,
+        `[razorpay] pro_subscribed sub=${subscriptionId} email_chars=${email.length}`,
       );
     }
-    return json({ ok: true, kind: "subscription", subscription_id: subscriptionId });
+    return json(
+      { ok: true, kind: "subscription", subscription_id: subscriptionId },
+      200,
+      request,
+      true,
+    );
   }
 
   // Founding-member one-time order.
@@ -627,14 +758,130 @@ async function handleRazorpayVerify(request: Request, env: Env): Promise<Respons
         ts: Date.now(),
       }),
     );
-    const prev = await env.LIKHO_KV.get("founding:_count");
-    const next = (prev ? parseInt(prev, 10) || 0 : 0) + 1;
-    await env.LIKHO_KV.put("founding:_count", String(next));
     console.log(
-      `[razorpay] founding_paid #${next} payment=${paymentId} email_chars=${email.length}`,
+      `[razorpay] founding_paid payment=${paymentId} email_chars=${email.length}`,
     );
   }
-  return json({ ok: true, kind: "order", payment_id: paymentId, order_id: orderId });
+  return json(
+    { ok: true, kind: "order", payment_id: paymentId, order_id: orderId },
+    200,
+    request,
+    true,
+  );
+}
+
+// ---------- Razorpay Webhook (lifecycle events) ----------
+//
+// Razorpay POSTs here for: subscription.charged, subscription.cancelled,
+// subscription.completed, subscription.halted, payment.failed, etc. We
+// authenticate the webhook using HMAC-SHA256 of the *raw request body*
+// against RAZORPAY_WEBHOOK_SECRET (separate from KEY_SECRET).
+//
+// Configure once in Razorpay dashboard:
+//   Settings → Webhooks → Add → URL: https://<worker>/razorpay/webhook
+//   → Active events: subscription.charged, subscription.cancelled,
+//     subscription.completed, subscription.halted, payment.failed
+//   → Secret: <pick a strong random string, also set as
+//     RAZORPAY_WEBHOOK_SECRET on the Worker>
+async function handleRazorpayWebhook(request: Request, env: Env): Promise<Response> {
+  if (!env.RAZORPAY_WEBHOOK_SECRET) {
+    console.log("[webhook] secret_not_configured");
+    // Accept-and-ignore so Razorpay doesn't retry while we're still wiring.
+    return json({ ok: true, ignored: "no_secret" }, 200);
+  }
+
+  const sigHeader = request.headers.get("X-Razorpay-Signature") || "";
+  // Read body as text so we can both HMAC the raw bytes and JSON.parse() it.
+  const rawBody = await request.text();
+  const ok = await verifyWebhookSignature(rawBody, sigHeader, env.RAZORPAY_WEBHOOK_SECRET);
+  if (!ok) {
+    console.log("[webhook] sig_mismatch");
+    return json({ error: "signature_mismatch" }, 400);
+  }
+
+  let event: {
+    event?: string;
+    payload?: {
+      subscription?: { entity?: { id?: string; status?: string } };
+      payment?: { entity?: { id?: string; subscription_id?: string; status?: string } };
+    };
+  };
+  try {
+    event = JSON.parse(rawBody);
+  } catch {
+    return json({ error: "invalid_json" }, 400);
+  }
+
+  const eventType = event.event ?? "";
+  const subId =
+    event.payload?.subscription?.entity?.id ||
+    event.payload?.payment?.entity?.subscription_id ||
+    "";
+  console.log(`[webhook] event=${eventType} sub=${subId}`);
+
+  if (!subId) {
+    // Non-subscription event we don't track yet (e.g. payment.failed for
+    // a one-time order). Acknowledge so Razorpay stops retrying.
+    return json({ ok: true });
+  }
+
+  const recordKey = `pro:subscription:${subId}`;
+  const existingRaw = await env.LIKHO_KV.get(recordKey);
+  const existing = existingRaw ? JSON.parse(existingRaw) : {};
+
+  switch (eventType) {
+    case "subscription.charged": {
+      // Successful monthly renewal — update last_charged_ts.
+      existing.last_charged_ts = Date.now();
+      existing.last_payment_id = event.payload?.payment?.entity?.id ?? null;
+      existing.status = "active";
+      break;
+    }
+    case "subscription.cancelled":
+    case "subscription.halted":
+    case "subscription.completed": {
+      existing.status = "cancelled";
+      existing.cancelled_ts = Date.now();
+      break;
+    }
+    case "payment.failed": {
+      existing.last_failure_ts = Date.now();
+      existing.last_failure_payment_id = event.payload?.payment?.entity?.id ?? null;
+      break;
+    }
+    default:
+      // Unknown event — store nothing but acknowledge so Razorpay doesn't retry.
+      return json({ ok: true, ignored: eventType });
+  }
+
+  // Defensive: if we got a webhook for a subscription we never recorded
+  // (out-of-order with verify), seed the record so we don't lose state.
+  if (!existing.subscription_id) {
+    existing.subscription_id = subId;
+    existing.ts = existing.ts ?? Date.now();
+  }
+  await env.LIKHO_KV.put(recordKey, JSON.stringify(existing));
+
+  return json({ ok: true, event: eventType, subscription_id: subId });
+}
+
+async function verifyWebhookSignature(
+  rawBody: string,
+  signatureHex: string,
+  secret: string,
+): Promise<boolean> {
+  // Webhook signatures use HMAC over the raw POST body (not a "data1|data2"
+  // concat like the order/subscription verify flow).
+  const sigBytes = hexToBytes(signatureHex);
+  if (!sigBytes) return false;
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["verify"],
+  );
+  return crypto.subtle.verify("HMAC", key, sigBytes, new TextEncoder().encode(rawBody));
 }
 
 // HMAC-SHA256 verification using Web Crypto. Razorpay returns the signature

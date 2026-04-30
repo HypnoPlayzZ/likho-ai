@@ -58,13 +58,26 @@ export function RazorpayCheckout() {
       },
       handler: async (response) => {
         setStatus({ kind: "verifying" });
-        const verifyResult = await verifyRazorpayPayment(response, cleaned);
+        // The user has been charged at this point. Retry verification a
+        // few times before giving up — most failures are transient (cold
+        // Worker, brief network glitch). On persistent failure, surface
+        // the payment_id so the user can prove they paid in support.
+        let verifyResult = await verifyRazorpayPayment(response, cleaned);
+        for (let attempt = 1; attempt < 3 && !verifyResult.ok; attempt++) {
+          await new Promise((r) => setTimeout(r, 800 * attempt));
+          verifyResult = await verifyRazorpayPayment(response, cleaned);
+        }
         if (verifyResult.ok) {
           setStatus({ kind: "paid" });
         } else {
+          // Don't drop the payment_id on the floor — the user has paid.
+          console.error("[razorpay] verify_failed_after_charge", response);
           setStatus({
             kind: "error",
-            message: verifyResult.message ?? "Payment couldn't be verified.",
+            message:
+              `Payment received (${response.razorpay_payment_id}) but we couldn't ` +
+              `confirm it on our end. Email founder@likho.ai with this payment ID ` +
+              `and we'll activate your account immediately.`,
           });
         }
       },
