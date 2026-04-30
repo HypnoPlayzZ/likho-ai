@@ -20,6 +20,7 @@ import {
 import { InteractiveMockup } from "@/components/InteractiveMockup";
 import { Section } from "@/components/Section";
 import { WaitlistForm } from "@/components/WaitlistForm";
+import { RazorpayCheckout } from "@/components/RazorpayCheckout";
 
 // Stable filename uploaded to every GitHub release. Versioned filenames
 // (e.g. Likho_0.2.0_x64_en-US.msi) would break this URL on the next bump.
@@ -353,7 +354,22 @@ function Pricing() {
           ))}
         </div>
 
-        <div id="founding-form" className="mt-12 max-w-xl mx-auto">
+        <div id="founding-form" className="mt-12 max-w-xl mx-auto space-y-6">
+          <div className="glass-card rounded-2xl p-6">
+            <div className="text-[10px] uppercase tracking-[0.25em] font-bold text-likho-indigo mb-2">
+              Lock in your founding spot
+            </div>
+            <h4 className="text-xl font-bold text-likho-indigo mb-1">
+              Pay ₹4,900 today — lifetime, locked-in price
+            </h4>
+            <p className="text-sm text-likho-slate mb-5">
+              50 spots total. After they're gone, the only path in is ₹299/month from launch.
+            </p>
+            <RazorpayCheckout />
+          </div>
+          <div className="text-center">
+            <p className="text-xs text-likho-slate">— or, not ready to pay yet? —</p>
+          </div>
           <WaitlistForm />
         </div>
       </div>

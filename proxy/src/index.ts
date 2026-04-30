@@ -6,8 +6,16 @@
 
 interface Env {
   GEMINI_API_KEY: string;
+  RAZORPAY_KEY_ID: string;
+  RAZORPAY_KEY_SECRET: string;
   LIKHO_KV: KVNamespace;
 }
+
+// Founding-member price in paise (₹4,900 = 490,000 paise). Locked here so
+// the client can't pass an arbitrary amount — the order endpoint ignores
+// any caller-supplied amount and uses this constant instead.
+const FOUNDING_AMOUNT_PAISE = 490000;
+const FOUNDING_CURRENCY = "INR";
 
 // Day 8: founding-member waitlist (PRD pricing — first 50 lifetime at ₹4,900).
 // Total cap is conservative enforcement only; the front-end shows "37 left"
@@ -128,6 +136,16 @@ export default {
 
     if (url.pathname === "/rewrite" && request.method === "POST") {
       return handleRewrite(request, env, "app");
+    }
+
+    // Razorpay checkout (founding-member flow). Two endpoints:
+    //   POST /razorpay/order  — create a Razorpay order, return order_id + key_id
+    //   POST /razorpay/verify — verify the post-payment signature, record entry
+    if (url.pathname === "/razorpay/order" && request.method === "POST") {
+      return handleRazorpayCreateOrder(request, env);
+    }
+    if (url.pathname === "/razorpay/verify" && request.method === "POST") {
+      return handleRazorpayVerify(request, env);
     }
 
     return json({ error: "not_found" }, 404);
@@ -362,4 +380,179 @@ function isValidEmail(s: string): boolean {
   // Pragmatic check — RFC 5322 is too permissive in practice. We just want
   // to catch obvious typos before storing.
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) && s.length <= 254;
+}
+
+// ---------- Razorpay Standard Checkout ----------
+//
+// Two-step flow: client calls /razorpay/order to create an order, opens the
+// Razorpay modal with the returned order_id + key_id, then on success posts
+// the three Razorpay-returned fields to /razorpay/verify which HMACs them.
+//
+// The amount is locked server-side (FOUNDING_AMOUNT_PAISE) so a tampered
+// client can't initiate a ₹1 order. Only the email is caller-supplied and
+// it's validated.
+//
+// KV layout for paid founding members:
+//   founding:payment:<payment_id>  — JSON { email, amount, payment_id, order_id, ts }
+//   founding:_count                — string-encoded total paid count
+
+async function handleRazorpayCreateOrder(request: Request, env: Env): Promise<Response> {
+  if (!env.RAZORPAY_KEY_ID || !env.RAZORPAY_KEY_SECRET) {
+    console.log("[razorpay] missing_credentials");
+    return json({ error: "razorpay_not_configured" }, 500);
+  }
+
+  let body: { email?: unknown };
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "invalid_json" }, 400);
+  }
+
+  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+  if (!email || !isValidEmail(email)) {
+    return json({ error: "invalid_email" }, 400);
+  }
+
+  const receipt = `founding_${Date.now()}`;
+  const auth = "Basic " + btoa(`${env.RAZORPAY_KEY_ID}:${env.RAZORPAY_KEY_SECRET}`);
+
+  let upstream: Response;
+  try {
+    upstream = await fetch("https://api.razorpay.com/v1/orders", {
+      method: "POST",
+      headers: {
+        Authorization: auth,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        amount: FOUNDING_AMOUNT_PAISE,
+        currency: FOUNDING_CURRENCY,
+        receipt,
+        notes: { email, plan: "founding_member_lifetime" },
+      }),
+    });
+  } catch (e) {
+    console.log(`[razorpay] order_network_error msg=${(e as Error).message}`);
+    return json({ error: "razorpay_unreachable" }, 502);
+  }
+
+  if (upstream.status === 401 || upstream.status === 403) {
+    console.log(`[razorpay] auth_error status=${upstream.status}`);
+    return json({ error: "razorpay_auth_failed" }, 401);
+  }
+  if (!upstream.ok) {
+    const errBody = await upstream.text().catch(() => "");
+    console.log(`[razorpay] order_error status=${upstream.status} body=${errBody.slice(0, 200)}`);
+    return json({ error: "razorpay_error", status: upstream.status }, 500);
+  }
+
+  const order = (await upstream.json()) as { id?: string; amount?: number; currency?: string };
+  if (!order.id) {
+    console.log("[razorpay] order_missing_id");
+    return json({ error: "razorpay_bad_response" }, 502);
+  }
+
+  console.log(`[razorpay] order_created id=${order.id} email_chars=${email.length}`);
+  return json({
+    order_id: order.id,
+    amount: order.amount ?? FOUNDING_AMOUNT_PAISE,
+    currency: order.currency ?? FOUNDING_CURRENCY,
+    key_id: env.RAZORPAY_KEY_ID,
+    receipt,
+  });
+}
+
+async function handleRazorpayVerify(request: Request, env: Env): Promise<Response> {
+  if (!env.RAZORPAY_KEY_SECRET) {
+    return json({ error: "razorpay_not_configured" }, 500);
+  }
+
+  let body: {
+    razorpay_order_id?: unknown;
+    razorpay_payment_id?: unknown;
+    razorpay_signature?: unknown;
+    email?: unknown;
+  };
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "invalid_json" }, 400);
+  }
+
+  const orderId = typeof body.razorpay_order_id === "string" ? body.razorpay_order_id : "";
+  const paymentId = typeof body.razorpay_payment_id === "string" ? body.razorpay_payment_id : "";
+  const signature = typeof body.razorpay_signature === "string" ? body.razorpay_signature : "";
+  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+
+  if (!orderId || !paymentId || !signature) {
+    return json({ error: "missing_fields" }, 400);
+  }
+
+  const ok = await verifyRazorpaySignature(
+    orderId,
+    paymentId,
+    signature,
+    env.RAZORPAY_KEY_SECRET,
+  );
+  if (!ok) {
+    console.log(`[razorpay] sig_mismatch order=${orderId} payment=${paymentId}`);
+    return json({ error: "signature_mismatch" }, 400);
+  }
+
+  // Signature verified — record the paid founding-member entry.
+  const recordKey = `founding:payment:${paymentId}`;
+  const existing = await env.LIKHO_KV.get(recordKey);
+  if (!existing) {
+    const record = {
+      email: email || null,
+      amount: FOUNDING_AMOUNT_PAISE,
+      currency: FOUNDING_CURRENCY,
+      payment_id: paymentId,
+      order_id: orderId,
+      ts: Date.now(),
+    };
+    await env.LIKHO_KV.put(recordKey, JSON.stringify(record));
+    const prevCount = await env.LIKHO_KV.get("founding:_count");
+    const next = (prevCount ? parseInt(prevCount, 10) || 0 : 0) + 1;
+    await env.LIKHO_KV.put("founding:_count", String(next));
+    console.log(`[razorpay] founding_paid #${next} payment=${paymentId} email_chars=${email.length}`);
+  } else {
+    console.log(`[razorpay] duplicate_verify payment=${paymentId} (already recorded)`);
+  }
+
+  return json({ ok: true, payment_id: paymentId, order_id: orderId });
+}
+
+// HMAC-SHA256 verification using Web Crypto. Razorpay returns the signature
+// as lowercase hex; we hex-decode it and use crypto.subtle.verify, which
+// performs a constant-time comparison.
+async function verifyRazorpaySignature(
+  orderId: string,
+  paymentId: string,
+  signatureHex: string,
+  secret: string,
+): Promise<boolean> {
+  const sigBytes = hexToBytes(signatureHex);
+  if (!sigBytes) return false;
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["verify"],
+  );
+  const data = new TextEncoder().encode(`${orderId}|${paymentId}`);
+  return crypto.subtle.verify("HMAC", key, sigBytes, data);
+}
+
+function hexToBytes(hex: string): Uint8Array | null {
+  if (hex.length % 2 !== 0) return null;
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i++) {
+    const byte = parseInt(hex.substr(i * 2, 2), 16);
+    if (Number.isNaN(byte)) return null;
+    out[i] = byte;
+  }
+  return out;
 }
