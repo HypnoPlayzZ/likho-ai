@@ -267,12 +267,13 @@ pub fn run() {
             // same-document DOM, not the OS desktop. apply_blur is broken
             // on Win 11 and apply_mica is too tinted to feel glassy, so
             // we use apply_acrylic. The blur intensity is fixed by Windows;
-            // we pull the perceived weight down by using a light tint
-            // (RGBA 0,0,0,50 ≈ 20% black) so the desktop shows through
-            // properly while still being blurred.
+            // tint alpha controls perceived heaviness. Dropped from 50 to 5
+            // for v0.1.4 per founder preference for "transparent glass with
+            // very little blur" — text legibility takes a small hit on
+            // light backgrounds but the glassy feel is much closer to spec.
             #[cfg(target_os = "windows")]
             if let Some(window) = app.get_webview_window("overlay") {
-                let _ = window_vibrancy::apply_acrylic(&window, Some((0, 0, 0, 50)));
+                let _ = window_vibrancy::apply_acrylic(&window, Some((0, 0, 0, 5)));
             }
 
             Ok(())

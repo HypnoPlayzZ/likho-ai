@@ -2018,7 +2018,7 @@ dependencies = [
 
 [[package]]
 name = "likho-ai-desktop"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "arboard",
  "enigo",
