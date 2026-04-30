@@ -1,4 +1,5 @@
 use tauri::{Emitter, Manager};
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, ShortcutState};
 use std::thread;
@@ -257,8 +258,39 @@ pub fn run() {
                 .build(),
         )
         .setup(|app| {
+            // Tray menu: version (info-only), Check for updates, Quit.
+            // The Check item emits an event that App.tsx listens for and
+            // runs the same updater check that fires on launch.
+            let version = env!("CARGO_PKG_VERSION");
+            let version_label = format!("Likho v{}", version);
+            let version_item = MenuItem::with_id(
+                app, "version", &version_label, false, None::<&str>,
+            )?;
+            let sep1 = PredefinedMenuItem::separator(app)?;
+            let check_item = MenuItem::with_id(
+                app, "check_updates", "Check for updates…", true, None::<&str>,
+            )?;
+            let sep2 = PredefinedMenuItem::separator(app)?;
+            let quit_item = MenuItem::with_id(
+                app, "quit", "Quit Likho", true, None::<&str>,
+            )?;
+            let menu = Menu::with_items(
+                app,
+                &[&version_item, &sep1, &check_item, &sep2, &quit_item],
+            )?;
+
             let _tray = TrayIconBuilder::new()
-                .tooltip("Likho — Alt+Space to rewrite")
+                .tooltip(&format!("Likho v{} — Alt+Space to rewrite", version))
+                .menu(&menu)
+                .on_menu_event(|app_handle, event| match event.id.as_ref() {
+                    "check_updates" => {
+                        if let Some(w) = app_handle.get_webview_window("overlay") {
+                            let _ = w.emit("tray:check-updates", ());
+                        }
+                    }
+                    "quit" => app_handle.exit(0),
+                    _ => {}
+                })
                 .on_tray_icon_event(|_tray, _event| {})
                 .build(app)?;
 
