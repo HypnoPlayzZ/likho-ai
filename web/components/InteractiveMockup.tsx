@@ -28,10 +28,39 @@ const SAMPLES = [
   "Sir please send the report jaldi, also PFA the document",
 ];
 
+// Canned rewrites for the 3 samples. Used as a fallback preview when the
+// Worker is unreachable — the page demonstrates the magic even before the
+// proxy is deployed. Clearly badged "Preview" so it's not deceptive.
+const CANNED: Record<string, Rewrites> = {
+  [SAMPLES[0]]: {
+    professional:
+      "Could you please look into the invoice and take the necessary action? I've attached it for your reference.",
+    concise: "Please process the attached invoice as soon as possible.",
+    friendly:
+      "Hey — when you get a moment, could you take a look at the invoice I've attached? Thanks!",
+    detected_language: "english",
+  },
+  [SAMPLES[1]]: {
+    professional:
+      "I have a meeting scheduled for tomorrow. Could you please confirm your availability?",
+    concise: "Meeting tomorrow — please confirm.",
+    friendly: "I've got a meeting tomorrow — can you confirm if you're in?",
+    detected_language: "hinglish",
+  },
+  [SAMPLES[2]]: {
+    professional:
+      "Could you please share the report at the earliest? I have attached the supporting document for reference.",
+    concise: "Please share the report soon — supporting document attached.",
+    friendly:
+      "Hi — could you send over the report when you can? I've attached the document too.",
+    detected_language: "english",
+  },
+};
+
 type View =
   | { kind: "input" }
   | { kind: "loading"; original: string }
-  | { kind: "done"; original: string; rewrites: Rewrites }
+  | { kind: "done"; original: string; rewrites: Rewrites; preview?: boolean }
   | { kind: "rate_limited"; message: string }
   | { kind: "error"; message: string };
 
@@ -49,6 +78,13 @@ export function InteractiveMockup() {
       setView({ kind: "done", original: trimmed, rewrites: result.rewrites });
     } else if (result.error === "rate_limited") {
       setView({ kind: "rate_limited", message: result.message ?? "Daily limit reached." });
+    } else if (
+      (result.error === "network" || result.error === "upstream") &&
+      CANNED[trimmed]
+    ) {
+      // Worker not reachable, but the user picked one of the canned samples —
+      // show a labelled preview so the page still demonstrates the magic.
+      setView({ kind: "done", original: trimmed, rewrites: CANNED[trimmed], preview: true });
     } else {
       setView({ kind: "error", message: result.message ?? "Something went wrong." });
     }
@@ -150,6 +186,12 @@ export function InteractiveMockup() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.22 }}
           >
+            {view.preview && (
+              <div className="mb-3 -mt-1 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-100/70 border border-amber-300/60 text-[10px] uppercase tracking-wider font-bold text-amber-700">
+                <Sparkles className="w-2.5 h-2.5" strokeWidth={2.5} />
+                Preview · download for live AI
+              </div>
+            )}
             <OriginalSnippet
               text={view.original}
               lang={view.rewrites.detected_language}
