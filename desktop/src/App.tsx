@@ -16,7 +16,13 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-const API_BASE = "http://127.0.0.1:8787";
+// Production builds talk to the deployed Cloudflare Worker; `vite dev`
+// (used by `npm run tauri dev`) talks to the local Wrangler at 8787.
+// import.meta.env.DEV is true only during dev — Vite strips this branch
+// during production builds.
+const API_BASE = import.meta.env.DEV
+  ? "http://127.0.0.1:8787"
+  : "https://likho-proxy.httpswwwhltvorg.workers.dev";
 const PROXY_URL = `${API_BASE}/rewrite`;
 const WAITLIST_URL = `${API_BASE}/waitlist`;
 const WAITLIST_COUNT_URL = `${API_BASE}/waitlist/count`;
