@@ -1,6 +1,6 @@
 [package]
 name = "likho-ai-desktop"
-version = "0.1.8"
+version = "0.1.9"
 description = "Likho.ai - AI writing overlay for Indian professionals"
 authors = ["Chetan"]
 edition = "2021"

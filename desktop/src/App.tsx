@@ -387,7 +387,7 @@ function IntroScreen({ onDismiss }: { onDismiss: () => void }) {
       <button
         type="button"
         onClick={onDismiss}
-        className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-likho-orange text-likho-indigo text-sm font-bold tracking-wide hover:brightness-110 active:scale-[0.98] transition-all"
+        className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-likho-orange text-white text-sm font-bold tracking-wide hover:brightness-110 active:scale-[0.98] transition-all"
       >
         Start using Likho
         <ArrowRight className="w-4 h-4" strokeWidth={2.5} />
@@ -554,7 +554,7 @@ function ProForm({
         <button
           type="submit"
           disabled={submitting || spotsLeft <= 0}
-          className="shrink-0 inline-flex items-center gap-1 px-3 py-2 rounded-[12px] bg-likho-orange text-likho-indigo text-sm font-bold hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          className="shrink-0 inline-flex items-center gap-1 px-3 py-2 rounded-[12px] bg-likho-orange text-white text-sm font-bold hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {submitting ? "..." : "Reserve"}
           {!submitting && <ArrowRight className="w-3.5 h-3.5" strokeWidth={2.5} />}
