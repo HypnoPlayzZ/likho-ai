@@ -612,15 +612,11 @@ function ProPill({ onClick }: { onClick: () => void }) {
 
 function DemoCounter({ used }: { used: number }) {
   if (used === 0) return null; // Don't show on first ever rewrite, looks promotional
-  const remaining = Math.max(0, DEMO_CAP - used);
   return (
     <div className="mt-3 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/5 border border-white/15 text-[10px] text-white/65">
       <span>
         {used} of {DEMO_CAP} demo rewrites used
       </span>
-      {remaining > 0 && remaining <= 2 && (
-        <span className="text-likho-orange font-semibold">· {remaining} left</span>
-      )}
     </div>
   );
 }
