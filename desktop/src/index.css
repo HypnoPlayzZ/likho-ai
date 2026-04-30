@@ -15,11 +15,18 @@ body,
      text crisper edges across Windows DPIs. */
   -webkit-font-smoothing: antialiased;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-  /* Subtle drop shadow on all text inside the overlay. Stabilises orange
-     and white text legibility when the desktop behind happens to have
-     bright/varied content (light wallpapers, photos, video). Cheap, no
-     visual cost on dark backgrounds. */
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+  /* Multi-layer text shadow — creates a dark halo around every glyph so
+     white text stays readable on any desktop wallpaper (bright photos,
+     light themes, gradients). Same trick gaming overlays + video captions
+     use. The 1px-thick layers act as an outline; the wider blurry layers
+     fade out the hard edges so it doesn't look CRT-ish on dark backgrounds.
+     Lets us keep the card transparent without sacrificing legibility. */
+  text-shadow:
+    0 0 1px rgba(0, 0, 0, 1),
+    0 0 2px rgba(0, 0, 0, 0.95),
+    0 0 6px rgba(0, 0, 0, 0.85),
+    0 0 12px rgba(0, 0, 0, 0.55),
+    0 1px 2px rgba(0, 0, 0, 1);
 }
 
 /* Custom thin scrollbar for any overflow areas (tone cards if rewrite is long).

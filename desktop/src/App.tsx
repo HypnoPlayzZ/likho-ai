@@ -242,7 +242,7 @@ function App() {
 
   return (
     <div key={showCounter} className="h-full w-full p-2 flex animate-overlay-in">
-      <div className="flex-1 flex flex-col rounded-[20px] overflow-hidden bg-black/50 backdrop-blur-2xl border border-white/20 ring-1 ring-inset ring-white/10 shadow-2xl shadow-black/70 relative">
+      <div className="flex-1 flex flex-col rounded-[20px] overflow-hidden bg-black/25 backdrop-blur-2xl border border-white/20 ring-1 ring-inset ring-white/10 shadow-2xl shadow-black/70 relative">
         <div className="flex-1 flex flex-col p-4 min-h-0">
           {proModal.kind !== "closed"
             ? renderProModal(proModal, spotsLeft, submitWaitlist, () =>
