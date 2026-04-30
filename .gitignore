@@ -64,3 +64,9 @@ signing-key.json
 local-test/
 scratch/
 *.local
+
+# Tauri updater signing keys — never commit
+.updater-keys/
+*.key
+*.key.pub
+!*.key.pub.example
