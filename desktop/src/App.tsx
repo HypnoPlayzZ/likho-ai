@@ -302,13 +302,13 @@ function renderStatus(s: Status, h: MainHandlers) {
     case "no_selection":
       return (
         <CenterMessage>
-          <div className="w-10 h-10 rounded-full bg-white/5 border border-white/15 flex items-center justify-center mb-3">
-            <MousePointer2 className="w-5 h-5 text-white/60" strokeWidth={1.5} />
+          <div className="w-10 h-10 rounded-full bg-likho-orange/15 border border-likho-orange/40 flex items-center justify-center mb-3 shadow-[0_0_24px_rgba(249,115,22,0.45)]">
+            <MousePointer2 className="w-5 h-5 text-likho-orange" strokeWidth={1.5} />
           </div>
-          <p className="text-base text-white font-medium">Select some text first</p>
-          <p className="text-xs text-white/60 mt-1">
+          <p className="text-base text-likho-orange font-semibold">Select some text first</p>
+          <p className="text-xs text-white/70 mt-1">
             then press <KeyHint>Alt</KeyHint>
-            <span className="mx-1 text-white/40">+</span>
+            <span className="mx-1 text-likho-orange/70">+</span>
             <KeyHint>Space</KeyHint>
           </p>
           <DemoCounter used={h.demoUsed} />
@@ -661,8 +661,11 @@ function Footer() {
 }
 
 function KeyHint({ children }: { children: React.ReactNode }) {
+  // Orange tinted kbd badge with a subtle outer glow. The shadow stack:
+  //   outer glow (orange, 12px blur)
+  //   inset bottom highlight (key-cap depth illusion)
   return (
-    <kbd className="inline-flex items-center justify-center min-w-[1.5rem] h-5 px-1.5 rounded-md text-[10px] font-mono font-semibold uppercase tracking-wide bg-white/10 border border-white/20 text-white/85 shadow-[inset_0_-1px_0_rgba(0,0,0,0.25)]">
+    <kbd className="inline-flex items-center justify-center min-w-[1.5rem] h-5 px-1.5 rounded-md text-[10px] font-mono font-semibold uppercase tracking-wide bg-likho-orange/15 border border-likho-orange/50 text-likho-orange shadow-[0_0_12px_rgba(249,115,22,0.35),inset_0_-1px_0_rgba(0,0,0,0.25)]">
       {children}
     </kbd>
   );
