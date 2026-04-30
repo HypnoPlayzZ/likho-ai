@@ -8,20 +8,26 @@ interface Env {
   GEMINI_API_KEY: string;
 }
 
-const GEMINI_MODEL = "gemini-2.5-flash";
+// gemini-2.5-flash-lite chosen over gemini-2.5-flash during dev because the
+// free-tier daily request quota is much higher on lite (~1000/day vs ~20/day
+// observed on flash). Quality is comparable for short business-message
+// rewrites in spot-checks. Revisit when paid tier is enabled.
+const GEMINI_MODEL = "gemini-2.5-flash-lite";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
-// Day 5 system prompt: three tones in strict JSON. We additionally enforce
-// JSON output via Gemini's responseSchema (below) so prompt-following slips
-// don't break us, but the prompt sets expectations for tone differentiation.
+// Day 6 system prompt: three tones in strict JSON, plus language detection.
+// Output is enforced via Gemini's responseSchema (below); prompt sets
+// expectations for tone differentiation and detection rules.
 const SYSTEM_PROMPT = `You are a professional writing assistant built for Indian English speakers writing business communication.
 
-When given text to rewrite, return three distinct rewrites at three tones:
+When given text to rewrite, return three distinct rewrites at three tones AND classify the language of the INPUT.
+
+Tones:
 - "professional": polished business English, suitable for emails to seniors, clients, or external stakeholders. British spelling. Slightly formal.
 - "concise": shortest version that preserves intent. Strip filler. Suitable for chat or quick replies.
 - "friendly": warm and conversational. Suitable for peers, casual messages, or informal team chat. Still professional, never overly casual.
 
-Rules across all three tones:
+Tone rules:
 - Preserve the user's intent and meaning exactly. Never add facts.
 - Convert Hinglish input to clean English automatically.
 - Recognise and improve Indian English idioms ("do the needful", "PFA", "revert back", "prepone") without being condescending — just write the better version.
@@ -30,25 +36,45 @@ Rules across all three tones:
 - Each tone must read as a complete, self-contained rewrite — not a fragment, not a continuation.
 - Each of the three values must be different from the others. If the source text is already short and casual, "concise" and "friendly" will still differ — concise drops words, friendly keeps warmth.
 
+Language detection (the "detected_language" field):
+- "english" — text is fully English. Indian English idioms ("do the needful", "PFA", "revert back", "kindly", "prepone") DO NOT count as Hinglish — they are English written by Indian speakers. Most input falls here.
+- "hinglish" — text is primarily romanised Hindi (Devanagari written in Latin script). Examples: "kya haal hai", "mera kaam ho gaya", "kripya kaam dhang se karo". Even if a few English connector words are mixed in, classify as "hinglish" if the core sentence structure or majority of content words are Hindi.
+- "mixed" — meaningful chunks in BOTH English and romanised Hindi. Example: "Sir please send the report jaldi" or "Looking forward to the meeting yaar". A single Hindi loanword in otherwise English text counts as "mixed".
+
+Decide on the dominant pattern, not on individual words. When in doubt between "english" and "mixed", prefer "english" (avoid false positives — common surnames, place names, and Indian English idioms are NOT Hindi).
+
 Example input: Sir kindly do the needful regarding invoice asap, also PFA
 Example output:
 {
   "professional": "Could you please review and resolve the invoice issue at your earliest convenience? I have attached the relevant document for your reference.",
   "concise": "Please resolve the invoice issue. Document attached.",
-  "friendly": "Hi — would you be able to take a look at the invoice issue? I've attached the document."
+  "friendly": "Hi — would you be able to take a look at the invoice issue? I've attached the document.",
+  "detected_language": "english"
+}
+
+Example input: mera kal meeting hai pls confirm karo
+Example output:
+{
+  "professional": "Could you please confirm the meeting scheduled for tomorrow?",
+  "concise": "Please confirm tomorrow's meeting.",
+  "friendly": "Hey, could you confirm our meeting for tomorrow?",
+  "detected_language": "hinglish"
 }`;
 
-// Gemini's structured-output schema. Forces a JSON object with exactly these
-// three keys, all non-empty strings. Combined with responseMimeType, this means
-// the model literally cannot return markdown fences or trailing prose.
+// Gemini's structured-output schema. Forces a JSON object with the four keys
+// below. Combined with responseMimeType, this means the model literally cannot
+// return markdown fences or trailing prose.
+//
+// detected_language uses an enum so the model can't return arbitrary values.
 const REWRITE_SCHEMA = {
   type: "object",
   properties: {
     professional: { type: "string" },
     concise: { type: "string" },
     friendly: { type: "string" },
+    detected_language: { type: "string", enum: ["english", "hinglish", "mixed"] },
   },
-  required: ["professional", "concise", "friendly"],
+  required: ["professional", "concise", "friendly", "detected_language"],
 } as const;
 
 const CORS_HEADERS = {
@@ -57,10 +83,13 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
+type DetectedLanguage = "english" | "hinglish" | "mixed";
+
 interface Rewrites {
   professional: string;
   concise: string;
   friendly: string;
+  detected_language: DetectedLanguage;
 }
 
 export default {
@@ -147,11 +176,15 @@ export default {
       return json({ error: "parse_failed" }, 502);
     }
 
+    // detected_language is metadata, not text content — safe to log.
+    // Useful for telling whether the Hinglish-detection path is firing for
+    // real users without inspecting any content.
     console.log(
       `[gemini] ok after_ms=${elapsed}` +
         ` p=${rewrites.professional.length}` +
         ` c=${rewrites.concise.length}` +
-        ` f=${rewrites.friendly.length}`,
+        ` f=${rewrites.friendly.length}` +
+        ` lang=${rewrites.detected_language}`,
     );
     return json(rewrites);
   },
@@ -177,7 +210,14 @@ function parseRewrites(raw: string): Rewrites | null {
   const c = typeof obj.concise === "string" ? obj.concise.trim() : "";
   const f = typeof obj.friendly === "string" ? obj.friendly.trim() : "";
   if (!p || !c || !f) return null;
-  return { professional: p, concise: c, friendly: f };
+
+  // Default to "english" if Gemini omits or returns an unknown value — better
+  // to silently treat as English (no badge) than to crash the rewrite flow.
+  const langRaw = typeof obj.detected_language === "string" ? obj.detected_language : "";
+  const detected_language: DetectedLanguage =
+    langRaw === "hinglish" || langRaw === "mixed" ? langRaw : "english";
+
+  return { professional: p, concise: c, friendly: f, detected_language };
 }
 
 function json(payload: unknown, status = 200): Response {

@@ -126,6 +126,12 @@ function safeParse(text: string): Rewrites {
 **Fix:** Use `app.get_webview_window("overlay").emit("text-captured", ...)` instead of `app.emit(...)`. Window-scoped emits go through the window's IPC channel directly and don't rely on the broadcast routing.
 **Prevention:** When emitting to a *known* target window, prefer `window.emit()` over `app.emit()`. Reserve `app.emit()` for genuine multi-window broadcasts (which we don't have).
 
+### [Apr 30, 2026] — Gemini 2.5 Flash free tier is ~20 requests/day per AI Studio project, not 1500
+**What happened:** Hit `RESOURCE_EXHAUSTED` 429 errors during Day 6 testing after fewer than 30 calls. Wasted time hand-rolling a polling retry, which itself burned more quota.
+**Root cause:** Google quietly tightened the Gemini 2.5 Flash free-tier quota. The error message ("limit: 20" on metric `GenerateRequestsPerDayPerProjectPerModel-FreeTier`) shows it's a daily, per-project, per-model cap — not the 1500/day many older guides suggest. The `retryDelay: 54s` field in the response is misleading; the daily quota does not actually roll over per-minute, and polling just spends future-day budget.
+**Fix:** Switched the dev model to `gemini-2.5-flash-lite`, which has a much higher free-tier daily quota and equivalent quality on short rewrites. Documented in DECISIONS.md as a variant choice.
+**Prevention:** When hitting Gemini 429s, check the actual `quotaValue` in the error body before assuming a per-minute throttle. For free-tier development, default to `flash-lite` over `flash`. For production we'll be on a paid tier; flash is fine there.
+
 ### [Apr 30, 2026] — Google Cloud API keys are blocked from Gemini API by default in Workspace orgs
 **What happened:** Used a Google API key from a personal-looking Cloud Console project; got `API_KEY_SERVICE_BLOCKED` even after enabling Gemini API on the project.
 **Root cause:** If the Google account is part of a Workspace organisation (`@spectatr.ai`, etc.), an org policy blocks API keys from accessing Vertex/Gemini APIs unless the key is bound to a service account. Even creating a "new project" inside that org inherits the policy.

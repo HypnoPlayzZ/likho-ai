@@ -7,10 +7,13 @@ import { invoke } from "@tauri-apps/api/core";
 // + Clerk auth header.
 const PROXY_URL = "http://127.0.0.1:8787/rewrite";
 
+type DetectedLanguage = "english" | "hinglish" | "mixed";
+
 interface Rewrites {
   professional: string;
   concise: string;
   friendly: string;
+  detected_language: DetectedLanguage;
 }
 
 type Tone = keyof Rewrites;
@@ -108,7 +111,15 @@ function renderStatus(s: Status, onPick: (text: string) => void) {
     case "done":
       return (
         <div>
-          <OriginalSnippet text={s.original} />
+          <div className="flex items-start gap-2 mb-2">
+            <p
+              className="text-xs text-likho-slate truncate flex-1 min-w-0"
+              title={s.original}
+            >
+              "{s.original}"
+            </p>
+            <LanguageBadge lang={s.rewrites.detected_language} />
+          </div>
           <div className="space-y-1">
             {TONES.map((tone) => (
               <ToneButton
@@ -135,6 +146,22 @@ function renderStatus(s: Status, onPick: (text: string) => void) {
         </div>
       );
   }
+}
+
+// Day 6: badge shown next to the captured-text snippet when Gemini detects
+// Hinglish or mixed input. English is the silent default — most users write
+// English most of the time and a badge for every rewrite would feel noisy.
+function LanguageBadge({ lang }: { lang: DetectedLanguage }) {
+  if (lang === "english") return null;
+  const label = lang === "hinglish" ? "Hinglish" : "Mixed";
+  return (
+    <span
+      className="shrink-0 text-[9px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-likho-indigo/10 text-likho-indigo"
+      title={lang === "hinglish" ? "Detected: Hinglish" : "Detected: mixed Hindi + English"}
+    >
+      {label}
+    </span>
+  );
 }
 
 function ToneButton({
@@ -205,12 +232,20 @@ async function fetchRewrites(text: string): Promise<RewriteResult> {
     if (!data.professional || !data.concise || !data.friendly) {
       return { ok: false, message: "Got a partial reply — please try again." };
     }
+    // Defensive default: if the proxy ever omits or returns an unknown
+    // detected_language value, fall back to "english" (no badge) so the
+    // rewrite flow never breaks just because detection slipped.
+    const lang: DetectedLanguage =
+      data.detected_language === "hinglish" || data.detected_language === "mixed"
+        ? data.detected_language
+        : "english";
     return {
       ok: true,
       rewrites: {
         professional: data.professional,
         concise: data.concise,
         friendly: data.friendly,
+        detected_language: lang,
       },
     };
   } catch {

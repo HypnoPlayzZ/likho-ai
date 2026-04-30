@@ -101,7 +101,7 @@ likho-ai/
 | Desktop UI | React 18 + TailwindCSS | Yes |
 | Desktop language | Rust (backend) + TypeScript (frontend) | Yes |
 | AI proxy | Cloudflare Workers | Yes |
-| AI model | Gemini Flash 2.5 (default — see DECISIONS.md 2026-04-30) | Yes |
+| AI model | Gemini Flash 2.5 Lite (default — see DECISIONS.md 2026-04-30) | Yes |
 | Auth | Clerk (free tier) | Yes |
 | Database | Supabase Postgres (free tier) | Yes |
 | Payments | Razorpay (primary) + Stripe (intl) | Yes — Razorpay for UPI |
@@ -139,7 +139,7 @@ likho-ai/
 
 ## Current Phase
 
-**Day 5 — Three Tones + Click-to-Replace.** Alt+Space → capture → proxy returns `{professional, concise, friendly}` from Gemini Flash 2.5 (responseSchema-enforced JSON) → overlay shows three clickable tone cards → click pastes the chosen rewrite back into the source app, replacing the original selection. Clipboard restored after 500ms. Still no auth/rate limits (Day 8).
+**Day 6 — Hinglish Auto-Detection.** Same three-tone flow as Day 5, plus Gemini now classifies input as `english` / `hinglish` / `mixed` and the overlay shows a small badge for the latter two. Detection runs at the prompt level (no second API call). Indian English idioms still classify as `english` — no false positives. Still no auth/rate limits (Day 8).
 
 Update this section at the start of each week. Format:
 ```

@@ -32,6 +32,26 @@
 - [x] Handle empty clipboard gracefully ("Select some text first" message).
 - [x] 150ms delay after simulated Ctrl+C before reading clipboard (per MISTAKES.md).
 
+## Day 6 — Hinglish Auto-Detection ✅
+
+- [x] Proxy: added `detected_language: "english" | "hinglish" | "mixed"` to the `responseSchema`. Enum-restricted so the model can't return an arbitrary value.
+- [x] Proxy: re-tuned system prompt with explicit detection rules (romanised Hindi specifically — Indian English idioms like "do the needful" classify as `english`, not Hinglish).
+- [x] Proxy: defensive parse falls back to `"english"` if the field is missing or unrecognised.
+- [x] Proxy: log `lang=` on every successful call (metadata only, never content).
+- [x] Desktop UI: small "Hinglish" / "Mixed" badge next to the captured-text snippet in the `done` state. English is silent default.
+- [x] Switched `gemini-2.5-flash` → `gemini-2.5-flash-lite` mid-day after the flash free tier (~20 req/day) ran out. DECISIONS.md has the variant note.
+- [x] Verified all 5 cases: pure English idiom, pure Hinglish, mixed, short Hinglish ("kya haal hai bhai"), single-Hindi-word edge case ("Looking forward to the meeting yaar").
+
+## Day 7 — Self-test day (planned)
+
+- [ ] Run through all real-world target apps: Outlook, Gmail web, WhatsApp Desktop, LinkedIn, Excel, Tally. Note where capture/replace fails.
+- [ ] Test on long input (200+ chars). Verify overlay sizing or implement scroll/expand.
+- [ ] Test multi-monitor positioning (overlay should clamp to monitor under cursor).
+- [ ] Test rapid-fire Alt+Space presses (debounce/race conditions).
+- [ ] Test on a fresh user clipboard (no prior content) and on one with rich-text content.
+- [ ] Build the production .msi installer and run it on a clean Windows VM if available — verify no runtime/dep issues per MISTAKES.md.
+- [ ] Compile a list of 20+ items found and prioritise into Day 7 evening fix-list.
+
 ## Day 5 — Three Tones + Click-to-Replace ✅
 
 - [x] Proxy: switch `/rewrite` to return JSON with `professional`, `concise`, `friendly`. System prompt re-tuned with per-tone guidance (formal vs short vs warm).
@@ -64,7 +84,7 @@
 | 3 | Selected text capture from any app ✅ |
 | 4 | First AI rewrite end-to-end (single tone, no auth yet) ✅ |
 | 5 | 3 tone variants + click-to-replace ✅ |
-| 6 | Hinglish auto-detection mode |
+| 6 | Hinglish auto-detection mode ✅ |
 | 7 | Self-test all day. Fix list of 20+ items. |
 
 ## Backlog (not yet scheduled)

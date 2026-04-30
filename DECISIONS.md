@@ -127,6 +127,8 @@
 
 **Follow-ups:** Add a provider abstraction (env-selectable) when/if we want to swap back or run both. Not done in v1 — keeping Day 4 minimal.
 
+**Update 2026-04-30 (Day 6):** Switched the model variant from `gemini-2.5-flash` to `gemini-2.5-flash-lite` during development. The 2.5-flash free-tier quota turns out to be ~20 requests/day per project on AI Studio keys (we exhausted it during Day 6 testing within an hour). Flash-Lite has a much higher free-tier daily quota and comparable quality on short rewrites. The decision to standardise on Gemini Flash 2.5 still stands — this is a variant choice within the same family, not a provider switch. Revisit on paid tier or if real users see quality regressions.
+
 ---
 
 ## (Add more entries as we build)
