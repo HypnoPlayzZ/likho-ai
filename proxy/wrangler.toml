@@ -15,4 +15,4 @@ port = 8787
 # and replace the `id` below with the real namespace id Wrangler prints.
 [[kv_namespaces]]
 binding = "LIKHO_KV"
-id = "00000000000000000000000000000001"
+id = "3bc0cb004fde47598727e822c5a5a3a2"
