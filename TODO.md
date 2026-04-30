@@ -58,16 +58,32 @@
 - [x] Esc hint in footer styled as a `<kbd>` badge.
 - [x] index.css: text-shadow on body for legibility against bright wallpapers behind the glass; thin custom scrollbar.
 
-## Day 8 — Demo mode + founding-member waitlist + Pro teaser (today)
+## Day 8 — Demo mode + founding-member waitlist + Pro teaser ✅
 
-- [ ] First-launch intro screen: "Try Likho free — 5 rewrites, no signup".
-- [ ] localStorage demo counter capped at 5 lifetime.
-- [ ] Subtle "X of 5 demo rewrites used" pill on each rewrite.
-- [ ] Gated screen at 5: two CTAs — sign-up free (placeholder for Clerk Day 9), reserve founding spot.
-- [ ] Pro teaser pill in overlay corner; click opens a glass modal with launch copy + email-capture.
-- [ ] Email capture writes to Cloudflare KV via worker `/waitlist` endpoint. Returns position. Local KV mock works in `wrangler dev`; prod needs `wrangler kv:namespace create` on deploy.
-- [ ] Hardcoded "37 spots left" — will be `50 - kv_count` once we wire the live count in (Day 9 polish).
-- [ ] DECISIONS.md entry for "demo + waitlist before auth/DB" — pre-launch validation strategy.
+- [x] First-launch intro screen: "Try Likho free — 5 rewrites, no signup".
+- [x] localStorage demo counter capped at 5 lifetime.
+- [x] Subtle "X of 5 demo rewrites used" pill on each rewrite.
+- [x] Gated screen at 5: two CTAs — sign-up free (placeholder for Clerk Day 9+), reserve founding spot.
+- [x] Pro teaser pill in overlay corner; glass modal with launch copy + email-capture.
+- [x] Email capture writes to Cloudflare KV via worker `/waitlist`. Returns position. Local KV mock works in `wrangler dev`.
+- [x] Live "X spots left" pulled from `/waitlist/count` (falls back to hardcoded 37 if worker unreachable).
+- [x] DECISIONS.md entry for "demo + waitlist before auth/DB".
+
+## Day 9 — Marketing landing page ✅
+
+- [x] Scaffolded `web/` with Next.js 14 (App Router) + TailwindCSS + Framer Motion + lucide-react. Brand tokens mirror `desktop/tailwind.config.js`.
+- [x] Aesthetic: white frosted-glass cards on a sunrise/sunset radial-gradient background. Inverted-glass counterpart of the desktop dark glass.
+- [x] All 8 sections per brief: Hero / Problem / How it works / Features / Pricing / Founder note / FAQ / Footer.
+- [x] **Interactive hero mockup**: textarea, 3 sample-text chips, "Try it" button → posts to Worker `/landing-rewrite`. Renders the same three-tone-card animation as the desktop overlay (Briefcase / Zap / Smile icons), with click-to-copy on each tone.
+- [x] **Worker `/landing-rewrite` endpoint** with per-IP daily cap (3/day) backed by KV. Returns 429 with friendly copy after 3 calls.
+- [x] **Founding-member email capture** (`WaitlistForm`) posts to `/waitlist` — same endpoint and same KV table the desktop app uses. Returns "you're #N" confirmation.
+- [x] Scroll-triggered fade-up on each section (Framer Motion `whileInView`, `once: true`).
+- [x] OpenGraph + Twitter card metadata in `app/layout.tsx`. References `/og-image.png` and `/favicon.svg` (asset files not created yet — preview cards will be image-less until those land).
+- [x] Production build clean: 42.8 kB route, 130 kB First Load JS.
+- [x] **Deployed:** `https://web-6nykedtei-hypnoplayzzs-projects.vercel.app` (Vercel, account `hypnoplayzz`).
+- [ ] **Outstanding (founder action):** see DECISIONS.md 2026-04-30 (Day 9). Runs needed: `wrangler login` → `wrangler kv:namespace create LIKHO_KV` → `wrangler secret put GEMINI_API_KEY` → `wrangler deploy` → `vercel env add NEXT_PUBLIC_API_BASE` → `vercel --prod`. Until then, demo + waitlist surface friendly errors on the deployed page.
+- [ ] **Outstanding (assets):** `web/public/og-image.png` (1200×630) and `web/public/favicon.svg`. Not blocking launch; preview cards just won't have hero image on social shares.
+- [ ] **Outstanding (domain):** purchase `likho.ai`, then `vercel domains add likho.ai`.
 
 ## Day 9+ — Self-test pass + auth/DB rollout (deferred)
 
@@ -113,8 +129,9 @@
 | 5 | 3 tone variants + click-to-replace ✅ |
 | 6 | Hinglish auto-detection mode ✅ |
 | 7 | UI polish: glass theme, animations, icons, skeletons, replaced toast ✅ |
-| 8 | Demo mode + founding-member waitlist + Pro teaser modal |
-| 9 | Originally Day 7 self-test pass + auth/DB. Reslotted. |
+| 8 | Demo mode + founding-member waitlist + Pro teaser modal ✅ |
+| 9 | Marketing landing page (web/) ✅ |
+| 10+ | Self-test pass on real Windows apps + auth/DB rollout (Clerk + Supabase) |
 
 ## Backlog (not yet scheduled)
 

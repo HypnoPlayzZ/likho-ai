@@ -139,7 +139,7 @@ likho-ai/
 
 ## Current Phase
 
-**Day 7 — UI Polish + Glass Theme.** Dark transparent glass surface with native Windows Acrylic blur, saffron-orange accents, fade-in animation on overlay-shown, Lucide icons per tone, skeleton shimmer cards while AI computes, "Replaced ✓" toast on click-to-replace, refined empty state, kbd-style key hints. Window resized to 440×320 for three tones to breathe.
+**Day 9 — Marketing Landing Page.** Public Next.js 14 page deployed to Vercel (`web-6nykedtei-hypnoplayzzs-projects.vercel.app`) with hero, interactive mockup (driven by Worker `/landing-rewrite`, 3/day per IP), problem/how-it-works/features sections, pricing teaser, founder note, FAQ, footer. Founding-member email capture (`/waitlist`) shares the desktop app's KV-backed waitlist. White-glass aesthetic mirrors the desktop overlay's dark glass.
 
 Update this section at the start of each week. Format:
 ```

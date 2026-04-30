@@ -163,6 +163,43 @@
 
 ---
 
+## 2026-04-30 Landing page on Next.js 14 + Vercel; reuse Worker for demo + waitlist (Day 9)
+
+**Context:** Day 9 ships the public marketing landing page. Founder needs a live URL for warm-network outreach this week — the page is the launchpad for both the desktop-app download and the founding-member waitlist.
+
+**Decision:**
+- **Stack:** Next.js 14 (App Router) + TailwindCSS + Framer Motion + lucide-react. Deployed to Vercel under `hypnoplayzz` account. Domain pending — current URL is `web-6nykedtei-hypnoplayzzs-projects.vercel.app`.
+- **Aesthetic:** white frosted-glass cards on a sunrise/sunset radial-gradient background, mirroring the desktop overlay's glass aesthetic but inverted (dark glass on desktop, white glass on web).
+- **Backend reuse:** the page hits the **same Cloudflare Worker** the desktop app uses. New `/landing-rewrite` endpoint (per-IP daily cap of 3) drives the interactive mockup; existing `/waitlist` endpoint backs the founding-member email capture. **No Supabase yet** — the user prompt asked for Supabase but Day 8 already chose Cloudflare KV; flip-flopping today would mean building two integrations. KV → Supabase migration happens once for both clients.
+- **OG tags + favicon:** static metadata referencing `/og-image.png` and `/favicon.svg`. Asset files not yet created — landing pages render without preview cards on social shares until those assets are added.
+
+**Alternatives considered:**
+- Astro / Vite + plain React: rejected — Next.js gets us OG tag generation, simple deploys, and Vercel's edge caching for free.
+- Self-hosted on Cloudflare Pages: equivalent in capability but the founder is already authenticated to Vercel; one less account to manage.
+- Supabase for waitlist on the page (per the user prompt): explicitly deferred — same backend as the desktop app keeps the data model unified for the migration.
+
+**Consequences:**
+- (+) One URL ready for outreach today.
+- (+) Page reuses every brand token from `desktop/tailwind.config.js`. When the desktop app's accent colour shifts, only one place to update.
+- (+) Worker gains a public-facing demo route with rate limiting; protects against scraper abuse of the free Gemini key.
+- (−) Worker isn't deployed yet (`wrangler login` is interactive; needs founder to run it). Until that's done, the landing page's demo + waitlist surface friendly "couldn't reach the server" errors. Static page renders fine.
+- (−) Founder needs to run, in this order, before the page is fully live:
+    1. `cd proxy && wrangler login`
+    2. `wrangler kv:namespace create LIKHO_KV` → copy printed id into `wrangler.toml`
+    3. `wrangler secret put GEMINI_API_KEY` (paste the dev key, or rotate to a prod-only key)
+    4. `wrangler deploy` → note the printed URL (something like `https://likho-proxy.<account>.workers.dev`)
+    5. `vercel env add NEXT_PUBLIC_API_BASE production` and paste the Worker URL
+    6. `vercel --prod` to redeploy with the env var
+- (−) Domain (`likho.ai`) not yet purchased per TODO.md Day 1 backlog — using the Vercel-generated URL temporarily. Connecting the real domain is `vercel domains add likho.ai` once it's bought.
+
+**Follow-ups:**
+- Add `/og-image.png` (1200×630) and `/favicon.svg` to `web/public/`.
+- Wire `NEXT_PUBLIC_API_BASE` env on Vercel after Worker is deployed.
+- Mouse-position parallax on the hero mockup — left out for v1, easy follow-up using `useMouse` + Framer Motion.
+- Connect the real domain when purchased.
+
+---
+
 ## (Add more entries as we build)
 
 > Template:

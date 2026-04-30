@@ -15,6 +15,10 @@ interface Env {
 // in the UI in a follow-up.
 const WAITLIST_CAP = 50;
 
+// Day 9: landing-page interactive mockup. Per-IP daily cap to prevent the
+// public demo route from being a free Gemini key for scrapers.
+const LANDING_DEMO_DAILY_CAP = 3;
+
 // gemini-2.5-flash-lite chosen over gemini-2.5-flash during dev because the
 // free-tier daily request quota is much higher on lite (~1000/day vs ~20/day
 // observed on flash). Quality is comparable for short business-message
@@ -115,96 +119,141 @@ export default {
       return handleWaitlistCount(env);
     }
 
-    if (url.pathname !== "/rewrite" || request.method !== "POST") {
-      return json({ error: "not_found" }, 404);
+    // Landing-page demo rewrite (Day 9). Same model + system prompt as
+    // /rewrite, but rate-limited per IP per day so it can't be abused as
+    // a free Gemini proxy by scrapers.
+    if (url.pathname === "/landing-rewrite" && request.method === "POST") {
+      return handleLandingRewrite(request, env);
     }
 
-    let body: { text?: unknown };
-    try {
-      body = await request.json();
-    } catch {
-      return json({ error: "invalid_json" }, 400);
+    if (url.pathname === "/rewrite" && request.method === "POST") {
+      return handleRewrite(request, env, "app");
     }
 
-    const text = typeof body.text === "string" ? body.text.trim() : "";
-    if (!text) {
-      return json({ error: "empty_text" }, 400);
-    }
-    if (text.length > 4000) {
-      return json({ error: "text_too_long", limit: 4000 }, 400);
-    }
-
-    // Cost guard: log every outbound call. Privacy guard: never log content.
-    const startedAt = Date.now();
-    console.log(`[gemini] call start chars=${text.length} model=${GEMINI_MODEL}`);
-
-    let upstream: Response;
-    try {
-      upstream = await fetch(GEMINI_URL, {
-        method: "POST",
-        headers: {
-          "x-goog-api-key": env.GEMINI_API_KEY,
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-          contents: [{ role: "user", parts: [{ text }] }],
-          generationConfig: {
-            // Three rewrites need more budget than a single one.
-            maxOutputTokens: 1200,
-            temperature: 0.6,
-            // Disable Gemini 2.5's "thinking" mode for rewrite calls — keeps
-            // latency under the CLAUDE.md 2.5s budget.
-            thinkingConfig: { thinkingBudget: 0 },
-            // Force the model to return valid JSON matching the schema.
-            // Eliminates the markdown-code-fence and trailing-prose failures
-            // documented in MISTAKES.md.
-            responseMimeType: "application/json",
-            responseSchema: REWRITE_SCHEMA,
-          },
-        }),
-      });
-    } catch {
-      console.log(`[gemini] network_error after_ms=${Date.now() - startedAt}`);
-      return json({ error: "upstream_unreachable" }, 502);
-    }
-
-    const elapsed = Date.now() - startedAt;
-    if (!upstream.ok) {
-      const errBody = await upstream.text().catch(() => "");
-      console.log(`[gemini] error status=${upstream.status} after_ms=${elapsed} body_len=${errBody.length}`);
-      return json({ error: "upstream_error", status: upstream.status }, 502);
-    }
-
-    const data = (await upstream.json()) as {
-      candidates?: Array<{
-        content?: { parts?: Array<{ text?: string }> };
-      }>;
-    };
-    const raw = (data.candidates?.[0]?.content?.parts ?? [])
-      .map((p) => p.text ?? "")
-      .join("")
-      .trim();
-
-    const rewrites = parseRewrites(raw);
-    if (!rewrites) {
-      console.log(`[gemini] parse_failed after_ms=${elapsed} raw_len=${raw.length}`);
-      return json({ error: "parse_failed" }, 502);
-    }
-
-    // detected_language is metadata, not text content — safe to log.
-    // Useful for telling whether the Hinglish-detection path is firing for
-    // real users without inspecting any content.
-    console.log(
-      `[gemini] ok after_ms=${elapsed}` +
-        ` p=${rewrites.professional.length}` +
-        ` c=${rewrites.concise.length}` +
-        ` f=${rewrites.friendly.length}` +
-        ` lang=${rewrites.detected_language}`,
-    );
-    return json(rewrites);
+    return json({ error: "not_found" }, 404);
   },
 };
+
+// Shared rewrite implementation used by both /rewrite (the desktop app) and
+// /landing-rewrite (the public marketing demo). The `source` tag goes into
+// the cost-guard log so we can tell which surface burned tokens.
+async function handleRewrite(
+  request: Request,
+  env: Env,
+  source: "app" | "landing",
+): Promise<Response> {
+  let body: { text?: unknown };
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "invalid_json" }, 400);
+  }
+
+  const text = typeof body.text === "string" ? body.text.trim() : "";
+  if (!text) {
+    return json({ error: "empty_text" }, 400);
+  }
+  if (text.length > 4000) {
+    return json({ error: "text_too_long", limit: 4000 }, 400);
+  }
+
+  const startedAt = Date.now();
+  console.log(`[gemini] call start chars=${text.length} model=${GEMINI_MODEL} src=${source}`);
+
+  let upstream: Response;
+  try {
+    upstream = await fetch(GEMINI_URL, {
+      method: "POST",
+      headers: {
+        "x-goog-api-key": env.GEMINI_API_KEY,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+        contents: [{ role: "user", parts: [{ text }] }],
+        generationConfig: {
+          maxOutputTokens: 1200,
+          temperature: 0.6,
+          thinkingConfig: { thinkingBudget: 0 },
+          responseMimeType: "application/json",
+          responseSchema: REWRITE_SCHEMA,
+        },
+      }),
+    });
+  } catch {
+    console.log(`[gemini] network_error after_ms=${Date.now() - startedAt} src=${source}`);
+    return json({ error: "upstream_unreachable" }, 502);
+  }
+
+  const elapsed = Date.now() - startedAt;
+  if (!upstream.ok) {
+    const errBody = await upstream.text().catch(() => "");
+    console.log(
+      `[gemini] error status=${upstream.status} after_ms=${elapsed} body_len=${errBody.length} src=${source}`,
+    );
+    return json({ error: "upstream_error", status: upstream.status }, 502);
+  }
+
+  const data = (await upstream.json()) as {
+    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+  };
+  const raw = (data.candidates?.[0]?.content?.parts ?? [])
+    .map((p) => p.text ?? "")
+    .join("")
+    .trim();
+
+  const rewrites = parseRewrites(raw);
+  if (!rewrites) {
+    console.log(`[gemini] parse_failed after_ms=${elapsed} raw_len=${raw.length} src=${source}`);
+    return json({ error: "parse_failed" }, 502);
+  }
+
+  console.log(
+    `[gemini] ok after_ms=${elapsed}` +
+      ` p=${rewrites.professional.length}` +
+      ` c=${rewrites.concise.length}` +
+      ` f=${rewrites.friendly.length}` +
+      ` lang=${rewrites.detected_language}` +
+      ` src=${source}`,
+  );
+  return json(rewrites);
+}
+
+// Day 9: landing-page demo route. Wraps handleRewrite() with a per-IP
+// daily rate limit so the public marketing demo can't be abused as a
+// free Gemini proxy by scrapers.
+async function handleLandingRewrite(request: Request, env: Env): Promise<Response> {
+  const ip =
+    request.headers.get("CF-Connecting-IP") ||
+    request.headers.get("X-Forwarded-For") ||
+    "unknown";
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const counterKey = `demo_ip:${ip}:${today}`;
+
+  const rawCount = await env.LIKHO_KV.get(counterKey);
+  const used = rawCount ? parseInt(rawCount, 10) || 0 : 0;
+  if (used >= LANDING_DEMO_DAILY_CAP) {
+    console.log(`[landing-rewrite] rate_limited ip_hash=${ip.length} used=${used}`);
+    return json(
+      {
+        error: "rate_limited",
+        message: `Daily demo limit (${LANDING_DEMO_DAILY_CAP}) reached. Try again tomorrow, or download the desktop app.`,
+        cap: LANDING_DEMO_DAILY_CAP,
+      },
+      429,
+    );
+  }
+
+  const result = await handleRewrite(request, env, "landing");
+  // Only count successful calls. Errors (validation, upstream) shouldn't
+  // burn the visitor's quota — same reasoning as the desktop demo cap.
+  if (result.ok) {
+    await env.LIKHO_KV.put(counterKey, String(used + 1), {
+      expirationTtl: 60 * 60 * 26, // 26h — covers timezone wraparound
+    });
+  }
+  return result;
+}
 
 // Defensive parse: even though responseMimeType+responseSchema *should* give
 // us pure JSON, we still strip code fences in case the upstream slips. Per
