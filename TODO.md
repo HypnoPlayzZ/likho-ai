@@ -32,6 +32,15 @@
 - [x] Handle empty clipboard gracefully ("Select some text first" message).
 - [x] 150ms delay after simulated Ctrl+C before reading clipboard (per MISTAKES.md).
 
+## Day 5 — Three Tones + Click-to-Replace ✅
+
+- [x] Proxy: switch `/rewrite` to return JSON with `professional`, `concise`, `friendly`. System prompt re-tuned with per-tone guidance (formal vs short vs warm).
+- [x] Proxy: enforce JSON output via Gemini `responseMimeType: "application/json"` + `responseSchema` so we don't rely on prompt-following alone (per MISTAKES.md "Don't trust the AI JSON output format"). Defensive code-fence stripping kept as a belt-and-braces parse.
+- [x] Proxy: bumped `maxOutputTokens` 800 → 1200 for the wider payload.
+- [x] Rust: `replace_selection(new_text)` Tauri command — hide overlay, save clipboard, set new text, simulate Ctrl+V (with VK_V + Alt-release safety), restore clipboard 500ms later in a spawned thread.
+- [x] Desktop UI: rebuilt `done` state with three clickable tone cards. Hover/focus styles in likho-indigo. Click → invoke `replace_selection`.
+- [x] Verified: Indian English idiom rewrite, click-to-replace into Notepad, Hinglish input, empty-selection regression.
+
 ## Day 4 — End-to-End AI Rewrite ✅
 
 - [x] Scaffold `proxy/` Cloudflare Worker (wrangler.toml, tsconfig, package.json, .dev.vars/.dev.vars.example, .gitignore).
@@ -54,7 +63,7 @@
 | 2 | Hello-world overlay on hotkey |
 | 3 | Selected text capture from any app ✅ |
 | 4 | First AI rewrite end-to-end (single tone, no auth yet) ✅ |
-| 5 | 3 tone variants + click-to-replace |
+| 5 | 3 tone variants + click-to-replace ✅ |
 | 6 | Hinglish auto-detection mode |
 | 7 | Self-test all day. Fix list of 20+ items. |
 

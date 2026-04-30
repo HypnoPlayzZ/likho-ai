@@ -124,11 +124,77 @@ fn capture_selected_text() -> String {
     captured
 }
 
+/// Day 5: paste a chosen rewrite back into the source app, replacing the
+/// originally-selected text.
+///
+/// Flow:
+/// 1. Hide the overlay so the source app gets keyboard focus back.
+/// 2. Save the current clipboard so we can restore it after paste — per
+///    SKILLS.md "Pattern: Selected Text Capture (Clipboard Method)".
+/// 3. Write the new text to the clipboard.
+/// 4. Simulate Ctrl+V into the source app. Source still has the original
+///    selection highlighted, so Ctrl+V replaces it.
+/// 5. After 500ms (paste settled) restore the previous clipboard in a
+///    spawned thread, so the user's clipboard isn't permanently overwritten.
+#[tauri::command]
+fn replace_selection(app: tauri::AppHandle, new_text: String) -> Result<(), String> {
+    // Hide overlay first — this returns focus to the source app, which is
+    // where Ctrl+V needs to be received.
+    hide_overlay(&app);
+
+    // Save current clipboard so we can restore it after paste.
+    let prev_clipboard = arboard::Clipboard::new()
+        .and_then(|mut c| c.get_text())
+        .unwrap_or_default();
+
+    // Give the OS a moment to transfer focus from the overlay back to the
+    // source app. Without this, Ctrl+V can fire before focus has landed.
+    thread::sleep(Duration::from_millis(100));
+
+    // Put the chosen rewrite on the clipboard.
+    match arboard::Clipboard::new().and_then(|mut c| c.set_text(new_text.clone())) {
+        Ok(_) => {}
+        Err(e) => return Err(format!("clipboard set failed: {e}")),
+    }
+
+    // Brief pause so the clipboard write is durable before paste reads it.
+    thread::sleep(Duration::from_millis(50));
+
+    // Simulate Ctrl+V into the source app. VK_V (0x56) — same reasoning as
+    // VK_C in capture_selected_text: Key::Unicode('v') can fall back to
+    // KEYEVENTF_UNICODE which doesn't fire Ctrl+V accelerators reliably.
+    {
+        use enigo::{Direction, Enigo, Key, Keyboard, Settings};
+        if let Ok(mut enigo) = Enigo::new(&Settings::default()) {
+            // Defensive: in case Alt is held for any reason. Replace is invoked
+            // from a mouse click in the overlay, so this should be a no-op.
+            let _ = enigo.key(Key::Alt, Direction::Release);
+            let _ = enigo.key(Key::Control, Direction::Press);
+            let _ = enigo.key(Key::Other(0x56), Direction::Click); // VK_V
+            let _ = enigo.key(Key::Control, Direction::Release);
+        }
+    }
+
+    // Restore the previous clipboard after the paste has had time to land.
+    // Spawned so the command returns immediately — JS doesn't need to wait.
+    thread::spawn(move || {
+        thread::sleep(Duration::from_millis(500));
+        if !prev_clipboard.is_empty() {
+            if let Ok(mut c) = arboard::Clipboard::new() {
+                let _ = c.set_text(prev_clipboard);
+            }
+        }
+    });
+
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .invoke_handler(tauri::generate_handler![replace_selection])
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_shortcuts(["Alt+Space"])

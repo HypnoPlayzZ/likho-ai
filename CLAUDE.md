@@ -139,7 +139,7 @@ likho-ai/
 
 ## Current Phase
 
-**Day 4 — End-to-End AI Rewrite.** Alt+Space → captures selected text → posts to local Cloudflare Worker proxy → returns one professional rewrite from Gemini Flash 2.5 → renders in overlay. ~1.6s round trip. No auth/rate limits yet (Day 8).
+**Day 5 — Three Tones + Click-to-Replace.** Alt+Space → capture → proxy returns `{professional, concise, friendly}` from Gemini Flash 2.5 (responseSchema-enforced JSON) → overlay shows three clickable tone cards → click pastes the chosen rewrite back into the source app, replacing the original selection. Clipboard restored after 500ms. Still no auth/rate limits (Day 8).
 
 Update this section at the start of each week. Format:
 ```
