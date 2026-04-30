@@ -81,7 +81,7 @@ function App() {
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [showCounter, setShowCounter] = useState(0);
   const [demoUsed, setDemoUsed] = useState<number>(getDemoUsed);
-  const [introSeen, setIntroSeen] = useState<boolean>(getIntroSeen);
+  const [, setIntroSeen] = useState<boolean>(getIntroSeen);
   const [proModal, setProModal] = useState<ProModal>({ kind: "closed" });
   const [spotsLeft, setSpotsLeft] = useState<number>(FALLBACK_REMAINING);
 

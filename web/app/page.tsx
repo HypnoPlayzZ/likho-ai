@@ -21,6 +21,11 @@ import { InteractiveMockup } from "@/components/InteractiveMockup";
 import { Section } from "@/components/Section";
 import { WaitlistForm } from "@/components/WaitlistForm";
 
+// Stable filename uploaded to every GitHub release. Versioned filenames
+// (e.g. Likho_0.2.0_x64_en-US.msi) would break this URL on the next bump.
+const DOWNLOAD_URL =
+  "https://github.com/HypnoPlayzZ/likho-ai/releases/latest/download/Likho-Setup.msi";
+
 export default function Page() {
   return (
     <main className="relative">
@@ -58,11 +63,11 @@ function Hero() {
           </p>
           <div className="mt-8 flex flex-col sm:flex-row gap-3">
             <a
-              href="#download"
+              href={DOWNLOAD_URL}
               id="download"
               className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-likho-indigo text-likho-cream text-sm font-bold hover:bg-likho-indigo/90 active:scale-[0.98] transition-all shadow-lg shadow-likho-indigo/25"
             >
-              Try free demo
+              Download for Windows — free
               <ArrowRight className="w-4 h-4" strokeWidth={2.5} />
             </a>
             <a
@@ -73,8 +78,14 @@ function Hero() {
               Reserve founding-member access — ₹4,900 lifetime
             </a>
           </div>
-          <p className="mt-4 text-xs text-likho-slate">
-            Free demo: 5 rewrites, no signup. Windows 11 · 12MB installer.
+          <p className="mt-4 text-xs text-likho-slate leading-relaxed max-w-md">
+            5 free rewrites, no signup. Windows 11 · ~12&nbsp;MB.
+            <br />
+            <span className="text-likho-slate/80">
+              Heads-up: the installer isn't code-signed yet. Windows will say{" "}
+              <em>"Windows protected your PC"</em> — click <strong>More info</strong>{" "}
+              → <strong>Run anyway</strong>. Signed installer coming soon.
+            </span>
           </p>
         </div>
 
@@ -257,7 +268,7 @@ function Pricing() {
       price: "₹0",
       sub: "20 rewrites/day",
       bullets: ["3 tones", "Hinglish detection", "All Windows apps"],
-      cta: null,
+      cta: { label: "Download for Windows", href: DOWNLOAD_URL },
       featured: false,
     },
     {
