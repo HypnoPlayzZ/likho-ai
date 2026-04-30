@@ -37,11 +37,13 @@ const WAITLIST_CAP = 50;
 // public demo route from being a free Gemini key for scrapers.
 const LANDING_DEMO_DAILY_CAP = 3;
 
-// gemini-2.5-flash-lite chosen over gemini-2.5-flash during dev because the
-// free-tier daily request quota is much higher on lite (~1000/day vs ~20/day
-// observed on flash). Quality is comparable for short business-message
-// rewrites in spot-checks. Revisit when paid tier is enabled.
-const GEMINI_MODEL = "gemini-2.5-flash-lite";
+// 2026-04-30: switched off gemini-2.5-flash-lite — Google tightened its
+// free-tier daily quota to 20 req/day, which gets exhausted in minutes.
+// gemini-2.5-flash has a separate, higher free-tier quota that survives
+// real usage. Slightly higher latency (~3s vs ~2s) but quality is better.
+// For launch with paying users, enable billing on AI Studio or swap to
+// Anthropic Claude Haiku per CLAUDE.md's original tech-stack decision.
+const GEMINI_MODEL = "gemini-2.5-flash";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 // Day 6 system prompt: three tones in strict JSON, plus language detection.
