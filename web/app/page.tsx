@@ -19,7 +19,6 @@ import {
 } from "lucide-react";
 import { InteractiveMockup } from "@/components/InteractiveMockup";
 import { Section } from "@/components/Section";
-import { WaitlistForm } from "@/components/WaitlistForm";
 import { RazorpayCheckout } from "@/components/RazorpayCheckout";
 
 // Stable filename uploaded to every GitHub release. Versioned filenames
@@ -354,7 +353,7 @@ function Pricing() {
           ))}
         </div>
 
-        <div id="founding-form" className="mt-12 max-w-xl mx-auto space-y-6">
+        <div id="founding-form" className="mt-12 max-w-xl mx-auto">
           <div className="glass-card rounded-2xl p-6">
             <div className="text-[10px] uppercase tracking-[0.25em] font-bold text-likho-indigo mb-2">
               Lock in your founding spot
@@ -367,10 +366,6 @@ function Pricing() {
             </p>
             <RazorpayCheckout />
           </div>
-          <div className="text-center">
-            <p className="text-xs text-likho-slate">— or, not ready to pay yet? —</p>
-          </div>
-          <WaitlistForm />
         </div>
       </div>
     </Section>
