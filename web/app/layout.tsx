@@ -21,6 +21,9 @@ export const metadata: Metadata = {
     "Indian SaaS",
   ],
   authors: [{ name: "Chetan" }],
+  // OG + Twitter images and the favicon are produced by app/opengraph-image.tsx
+  // and app/icon.tsx — Next.js auto-discovers and links them, so we don't
+  // hand-wire URLs here.
   openGraph: {
     title: TITLE,
     description: DESCRIPTION,
@@ -28,23 +31,11 @@ export const metadata: Metadata = {
     siteName: "Likho",
     locale: "en_IN",
     type: "website",
-    images: [
-      {
-        url: "/og-image.png",
-        width: 1200,
-        height: 630,
-        alt: "Likho — AI writing overlay for Windows",
-      },
-    ],
   },
   twitter: {
     card: "summary_large_image",
     title: TITLE,
     description: DESCRIPTION,
-    images: ["/og-image.png"],
-  },
-  icons: {
-    icon: "/favicon.svg",
   },
 };
 
