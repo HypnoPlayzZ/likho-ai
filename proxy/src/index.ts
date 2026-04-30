@@ -6,7 +6,14 @@
 
 interface Env {
   GEMINI_API_KEY: string;
+  LIKHO_KV: KVNamespace;
 }
+
+// Day 8: founding-member waitlist (PRD pricing — first 50 lifetime at ₹4,900).
+// Total cap is conservative enforcement only; the front-end shows "37 left"
+// hardcoded today and will switch to live count when this number is shown
+// in the UI in a follow-up.
+const WAITLIST_CAP = 50;
 
 // gemini-2.5-flash-lite chosen over gemini-2.5-flash during dev because the
 // free-tier daily request quota is much higher on lite (~1000/day vs ~20/day
@@ -99,6 +106,15 @@ export default {
     }
 
     const url = new URL(request.url);
+
+    // Founding-member waitlist endpoints (Day 8).
+    if (url.pathname === "/waitlist" && request.method === "POST") {
+      return handleWaitlistPost(request, env);
+    }
+    if (url.pathname === "/waitlist/count" && request.method === "GET") {
+      return handleWaitlistCount(env);
+    }
+
     if (url.pathname !== "/rewrite" || request.method !== "POST") {
       return json({ error: "not_found" }, 404);
     }
@@ -225,4 +241,76 @@ function json(payload: unknown, status = 200): Response {
     status,
     headers: { "Content-Type": "application/json", ...CORS_HEADERS },
   });
+}
+
+// ---------- Waitlist (Day 8) ----------
+//
+// KV layout:
+//   waitlist:_count            — string-encoded total entry count
+//   waitlist:email:<email>     — JSON { email, position, ts }
+//
+// Pre-launch validation only. Race conditions on concurrent inserts are
+// possible (KV has no atomic increment) but the cost is at most a few
+// position-number duplicates which we don't surface to users. Day 9+
+// migrates to Supabase with a real autoincrement column.
+
+interface WaitlistEntry {
+  email: string;
+  position: number;
+  ts: number;
+}
+
+async function handleWaitlistPost(request: Request, env: Env): Promise<Response> {
+  let body: { email?: unknown };
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "invalid_json" }, 400);
+  }
+
+  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+  if (!email || !isValidEmail(email)) {
+    return json({ error: "invalid_email" }, 400);
+  }
+
+  const emailKey = `waitlist:email:${email}`;
+  const existing = await env.LIKHO_KV.get(emailKey, "json");
+  if (existing) {
+    const entry = existing as WaitlistEntry;
+    const total = await getCount(env);
+    console.log(`[waitlist] duplicate email_chars=${email.length} pos=${entry.position}`);
+    return json({ position: entry.position, total, already_listed: true });
+  }
+
+  const total = await getCount(env);
+  if (total >= WAITLIST_CAP) {
+    console.log(`[waitlist] full total=${total}`);
+    return json({ error: "waitlist_full", total }, 409);
+  }
+
+  const newPosition = total + 1;
+  const entry: WaitlistEntry = { email, position: newPosition, ts: Date.now() };
+  await env.LIKHO_KV.put(emailKey, JSON.stringify(entry));
+  await env.LIKHO_KV.put("waitlist:_count", String(newPosition));
+
+  // Privacy: log the position and char-count, never the email.
+  console.log(`[waitlist] new pos=${newPosition} email_chars=${email.length}`);
+  return json({ position: newPosition, total: newPosition, already_listed: false });
+}
+
+async function handleWaitlistCount(env: Env): Promise<Response> {
+  const total = await getCount(env);
+  return json({ total, cap: WAITLIST_CAP, remaining: Math.max(0, WAITLIST_CAP - total) });
+}
+
+async function getCount(env: Env): Promise<number> {
+  const raw = await env.LIKHO_KV.get("waitlist:_count");
+  const n = raw ? parseInt(raw, 10) : 0;
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
+function isValidEmail(s: string): boolean {
+  // Pragmatic check — RFC 5322 is too permissive in practice. We just want
+  // to catch obvious typos before storing.
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) && s.length <= 254;
 }

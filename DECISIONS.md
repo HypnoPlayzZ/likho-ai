@@ -131,6 +131,38 @@
 
 ---
 
+## 2026-04-30 Demo mode + founding-member waitlist before auth/DB (Day 8)
+
+**Context:** Original Day 8 plan was Clerk auth + Supabase + Razorpay so paid signups could happen. Founder pivoted: validate willingness-to-pay with a *founding-member waitlist* BEFORE building the auth/payments stack. No point in payment plumbing if the launch audience won't reserve a paid spot at the founder's price point.
+
+**Decision:** Day 8 ships:
+1. **Demo mode** — 5 lifetime rewrites, no signup required. localStorage counter (`likho_demo_used`). First-launch intro screen, "X of 5" footer, gated screen at 5 with two CTAs.
+2. **Pro teaser modal** — small "✨ Pro" pill in the overlay, click opens a glass-themed modal pitching ₹4,900 lifetime founding-member access.
+3. **Email-capture waitlist** — Cloudflare Worker `/waitlist` endpoint backed by **Cloudflare KV** (not Supabase yet). Stores `waitlist:email:<email>` and `waitlist:_count`. Returns "you're #N" on submit. Cap of 50 enforced server-side.
+
+**Alternatives considered:**
+- Provision Supabase + Clerk now: rejected for today — at least 2–3 hours of platform plumbing that doesn't validate the underlying assumption that anyone wants a founding-member tier.
+- Stand up a simple form on a landing page (Tally, Google Form): rejected because the desktop overlay is the trigger context — interest spikes when the user has just felt the magic of a rewrite, not when they're scrolling a marketing page.
+- Server-side fingerprint rate limiting on demo: deferred. Client-side localStorage cap is bypassable but the threat model is "marketing cost", not "revenue protection". When paid tier ships and abuse becomes economic, hard rate limiting goes onto the deployed Cloudflare KV.
+
+**Consequences:**
+- (+) Zero new platform dependencies today — KV's local mock works in `wrangler dev`. Worker compiles + runs unchanged.
+- (+) Email capture is real and persistent (KV survives across worker restarts in dev mode).
+- (+) Pre-launch we can answer "do people actually reserve at ₹4,900?" without paying for Supabase or Clerk.
+- (+) Migration path is clean — when Supabase lands (Day 9+), iterate KV entries once into the `founding_member_waitlist` table; the API surface to the app stays `/waitlist`.
+- (−) The "Sign up free for 20/day" CTA on the gated screen opens a placeholder URL (`https://likho.ai/signup`) until Clerk is wired. Click is dead-end for now — explicit TODO. Acceptable because gating only triggers after 5 rewrites, by which point the user is already engaged enough to wait.
+- (−) Demo cap is bypassable by clearing localStorage. Not a real concern at this stage; tighten when paid tier exists.
+- (−) `wrangler kv:namespace create LIKHO_KV` has to be run before `wrangler deploy` lands in prod, and the printed namespace id has to replace the placeholder in `wrangler.toml`. One-time step, documented in the file.
+
+**Follow-ups for Day 9+:**
+- Provision Cloudflare KV namespace; replace placeholder id.
+- Provision Supabase project + `founding_member_waitlist` table; migrate KV → Supabase.
+- Provision Clerk app; replace the placeholder signup URL with real magic-link flow.
+- Hard server-side rate limit on demo using install-id fingerprint.
+- Wire the Pro modal's "spots left" to refresh on focus, not just on overlay mount.
+
+---
+
 ## (Add more entries as we build)
 
 > Template:

@@ -3,7 +3,16 @@ main = "src/index.ts"
 compatibility_date = "2025-10-01"
 
 # Day 4: dev only — runs at http://localhost:8787 via `wrangler dev`.
-# Production deploy comes Day 8 alongside Clerk auth.
+# Production deploy comes Day 9+ alongside Clerk auth.
 
 [dev]
 port = 8787
+
+# KV namespace for the founding-member waitlist (Day 8).
+# `wrangler dev` mocks KV locally so this works without provisioning.
+# Before `wrangler deploy`, run:
+#     wrangler kv:namespace create LIKHO_KV
+# and replace the `id` below with the real namespace id Wrangler prints.
+[[kv_namespaces]]
+binding = "LIKHO_KV"
+id = "00000000000000000000000000000001"
