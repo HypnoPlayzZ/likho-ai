@@ -212,6 +212,14 @@ export default {
       return handleRazorpayWebhook(request, env);
     }
 
+    // License check — desktop app calls this with the user's email after
+    // they "sign in" to bypass the 5-rewrite demo cap. Looks up paid records
+    // in KV and reports the tier. Until Clerk JWT auth lands this is the
+    // simplest paid-user gating we can do.
+    if (url.pathname === "/license/check" && request.method === "POST") {
+      return handleLicenseCheck(request, env);
+    }
+
     return json({ error: "not_found" }, 404);
   },
 };
@@ -913,4 +921,81 @@ function hexToBytes(hex: string): Uint8Array | null {
     out[i] = byte;
   }
   return out;
+}
+
+// ---------- License check ----------
+//
+// The desktop app's demo cap (5 rewrites lifetime) gates all users
+// indiscriminately — including paying founding members and Pro subscribers.
+// This endpoint lets the desktop client trade an email for its tier:
+// founding-paid customers and Pro subscribers bypass the cap.
+//
+// "Trust" model: email-only is weak (anyone could enter someone else's email
+// and unlock Pro). Acceptable for launch — Pro features aren't built yet, so
+// the only thing being unlocked is "no demo cap." Real per-device licence
+// keys land Day 11+ alongside Clerk auth.
+
+interface FoundingPayment {
+  email?: string | null;
+  payment_id: string;
+  ts: number;
+}
+
+interface ProSubscription {
+  email?: string | null;
+  subscription_id: string;
+  status?: string;
+  cancelled_ts?: number;
+  ts: number;
+}
+
+async function handleLicenseCheck(request: Request, env: Env): Promise<Response> {
+  let body: { email?: unknown };
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "invalid_json" }, 400);
+  }
+
+  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+  if (!email || !isValidEmail(email)) {
+    return json({ error: "invalid_email", tier: "free" }, 400);
+  }
+
+  // Founding-member lookup. Walking the founding:payment:* records is fine
+  // at this scale — cap is 50 records ever. If we grow past that, switch
+  // to a secondary index (founding:by_email:<email>).
+  const foundingList = await env.LIKHO_KV.list({ prefix: "founding:payment:" });
+  for (const k of foundingList.keys) {
+    const record = await env.LIKHO_KV.get(k.name, "json");
+    if (!record) continue;
+    const r = record as FoundingPayment;
+    if (r.email && r.email.toLowerCase() === email) {
+      console.log(`[license] founding match email_chars=${email.length}`);
+      return json({ tier: "founding", valid: true, since: r.ts });
+    }
+  }
+
+  // Pro subscription lookup. Up to ~thousands of records eventually; same
+  // index-or-walk consideration applies. For now walk it.
+  const proList = await env.LIKHO_KV.list({ prefix: "pro:subscription:" });
+  for (const k of proList.keys) {
+    const record = await env.LIKHO_KV.get(k.name, "json");
+    if (!record) continue;
+    const r = record as ProSubscription;
+    if (r.email && r.email.toLowerCase() === email) {
+      // Cancelled subscriptions don't grant Pro access. Other statuses
+      // (active, halted-but-still-in-grace, etc.) all keep them in.
+      if (r.status === "cancelled") {
+        console.log(`[license] pro cancelled email_chars=${email.length}`);
+        return json({ tier: "free", valid: false, reason: "cancelled" });
+      }
+      console.log(`[license] pro match email_chars=${email.length}`);
+      return json({ tier: "pro", valid: true, since: r.ts });
+    }
+  }
+
+  // Not a paid user. Still return 200 so the client can act on it.
+  console.log(`[license] no match email_chars=${email.length}`);
+  return json({ tier: "free", valid: false });
 }

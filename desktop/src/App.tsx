@@ -26,10 +26,16 @@ const API_BASE = import.meta.env.DEV
 const PROXY_URL = `${API_BASE}/rewrite`;
 const WAITLIST_URL = `${API_BASE}/waitlist`;
 const WAITLIST_COUNT_URL = `${API_BASE}/waitlist/count`;
+const LICENSE_CHECK_URL = `${API_BASE}/license/check`;
 
 // Day 8: free-trial cap. Lifetime, not daily — so the localStorage key
 // `likho_demo_used` is the source of truth across sessions.
 const DEMO_CAP = 5;
+
+// License cache TTL — re-verify against the worker once a day. Short enough
+// that a cancelled subscription disables Pro features within 24h, long
+// enough that we don't ping the worker on every Alt+Space.
+const LICENSE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 // Hardcoded fallback if the live waitlist count endpoint isn't reachable.
 // 50 cap minus a starting baseline so the number isn't psychologically
@@ -83,6 +89,59 @@ const getIntroSeen = () => localStorage.getItem("likho_intro_seen") === "true";
 const setDemoUsedLS = (n: number) => localStorage.setItem("likho_demo_used", String(n));
 const setIntroSeenLS = () => localStorage.setItem("likho_intro_seen", "true");
 
+// License: cached on disk so we don't hit the worker on every Alt+Space.
+type LicenseTier = "free" | "founding" | "pro";
+interface LicenseCacheEntry {
+  email: string;
+  tier: LicenseTier;
+  valid: boolean;
+  checkedAt: number;
+}
+
+const getLicense = (): LicenseCacheEntry | null => {
+  try {
+    const raw = localStorage.getItem("likho_license");
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as LicenseCacheEntry;
+    if (typeof parsed.email !== "string" || typeof parsed.checkedAt !== "number") return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+const setLicenseLS = (entry: LicenseCacheEntry) =>
+  localStorage.setItem("likho_license", JSON.stringify(entry));
+
+// True iff we have a fresh, paid license cached.
+const isPaidLicense = (entry: LicenseCacheEntry | null): boolean => {
+  if (!entry || !entry.valid) return false;
+  if (entry.tier === "free") return false;
+  if (Date.now() - entry.checkedAt > LICENSE_CACHE_TTL_MS) return false;
+  return true;
+};
+
+async function checkLicense(email: string): Promise<LicenseCacheEntry> {
+  const cleaned = email.trim().toLowerCase();
+  try {
+    const res = await fetch(LICENSE_CHECK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: cleaned }),
+    });
+    const data = await res.json().catch(() => ({}));
+    const tier: LicenseTier =
+      data.tier === "founding" || data.tier === "pro" ? data.tier : "free";
+    return {
+      email: cleaned,
+      tier,
+      valid: !!data.valid,
+      checkedAt: Date.now(),
+    };
+  } catch {
+    return { email: cleaned, tier: "free", valid: false, checkedAt: Date.now() };
+  }
+}
+
 function App() {
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [showCounter, setShowCounter] = useState(0);
@@ -108,13 +167,14 @@ function App() {
     const unlistenCapture = listen<string>("text-captured", async (event) => {
       // Demo gates run BEFORE the rewrite call:
       // 1. Never seen the intro? Show it instead of rewriting.
-      // 2. Used all 5 demo rewrites? Show the gated screen.
+      // 2. Used all 5 demo rewrites AND not a paid licensee? Show gated.
       // 3. Empty selection? Same as before.
       if (!getIntroSeen()) {
         setStatus({ kind: "intro" });
         return;
       }
-      if (getDemoUsed() >= DEMO_CAP) {
+      const paid = isPaidLicense(getLicense());
+      if (!paid && getDemoUsed() >= DEMO_CAP) {
         setStatus({ kind: "gated" });
         return;
       }
@@ -135,7 +195,9 @@ function App() {
       );
       // Only count successful rewrites against the demo cap. Errors don't
       // burn a credit — fair to the user and avoids penalising network blips.
-      if (result.ok) {
+      // Paid licensees bypass the cap entirely so we don't burn a credit
+      // they don't need.
+      if (result.ok && !paid) {
         const next = getDemoUsed() + 1;
         setDemoUsedLS(next);
         setDemoUsed(next);
@@ -268,6 +330,13 @@ function App() {
                 onIntroDismiss,
                 onSignUp,
                 openProModal: () => setProModal({ kind: "form" }),
+                onSignedIn: (entry) => {
+                  // Persist the license, dismiss the gated screen, and
+                  // drop the user into the empty/instruction state so
+                  // they Alt+Space again with text selected.
+                  setLicenseLS(entry);
+                  setStatus({ kind: "no_selection" });
+                },
                 demoUsed,
               })}
         </div>
@@ -296,6 +365,7 @@ interface MainHandlers {
   onIntroDismiss: () => void;
   onSignUp: () => void;
   openProModal: () => void;
+  onSignedIn: (entry: LicenseCacheEntry) => void;
   demoUsed: number;
 }
 
@@ -312,7 +382,13 @@ function renderStatus(s: Status, h: MainHandlers) {
       return <IntroScreen onDismiss={h.onIntroDismiss} />;
 
     case "gated":
-      return <GatedScreen onSignUp={h.onSignUp} onReserve={h.openProModal} />;
+      return (
+        <GatedScreen
+          onSignUp={h.onSignUp}
+          onReserve={h.openProModal}
+          onSignedIn={h.onSignedIn}
+        />
+      );
 
     case "no_selection":
       return (
@@ -419,10 +495,89 @@ function IntroScreen({ onDismiss }: { onDismiss: () => void }) {
 function GatedScreen({
   onSignUp,
   onReserve,
+  onSignedIn,
 }: {
   onSignUp: () => void;
   onReserve: () => void;
+  onSignedIn: (entry: LicenseCacheEntry) => void;
 }) {
+  type Mode =
+    | { kind: "options" }
+    | { kind: "signin"; email: string }
+    | { kind: "checking"; email: string }
+    | { kind: "error"; email: string; message: string };
+  const [mode, setMode] = useState<Mode>({ kind: "options" });
+
+  const onSubmitSignIn = async (email: string) => {
+    setMode({ kind: "checking", email });
+    const license = await checkLicense(email);
+    if (license.valid && license.tier !== "free") {
+      setLicenseLS(license);
+      onSignedIn(license);
+      return;
+    }
+    setMode({
+      kind: "error",
+      email,
+      message:
+        "We couldn't find a paid account for that email. Check the spelling or grab a Founding spot below.",
+    });
+  };
+
+  if (mode.kind === "signin" || mode.kind === "checking" || mode.kind === "error") {
+    const checking = mode.kind === "checking";
+    return (
+      <div className="flex-1 flex flex-col text-center px-1">
+        <div className="flex flex-col items-center pt-1">
+          <div className="w-10 h-10 rounded-full bg-likho-orange/15 border border-likho-orange/40 flex items-center justify-center mb-2 shadow-[0_0_20px_rgba(249,115,22,0.4)]">
+            <Sparkles className="w-5 h-5 text-likho-orange" strokeWidth={1.75} />
+          </div>
+          <h2 className="text-base text-white font-semibold">Welcome back</h2>
+          <p className="text-xs text-white/65 mt-1 max-w-[320px]">
+            Enter the email you used when paying.
+          </p>
+        </div>
+
+        <div className="flex-1 flex flex-col justify-center gap-2 mt-3">
+          <input
+            type="email"
+            autoFocus
+            disabled={checking}
+            value={mode.email}
+            onChange={(e) =>
+              setMode({ kind: "signin", email: e.target.value })
+            }
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !checking) {
+                onSubmitSignIn(mode.email);
+              }
+            }}
+            placeholder="you@example.com"
+            className="w-full rounded-full px-4 py-2 bg-white/10 border border-white/25 text-sm text-white placeholder:text-white/40 focus:bg-white/15 focus:border-likho-orange/60 focus:outline-none focus:ring-2 focus:ring-likho-orange/30 disabled:opacity-50"
+          />
+          <button
+            type="button"
+            onClick={() => onSubmitSignIn(mode.email)}
+            disabled={checking || !mode.email.trim()}
+            className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-full bg-likho-orange text-white text-sm font-bold hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {checking ? "Checking…" : "Sign in"}
+          </button>
+          {mode.kind === "error" && (
+            <p className="text-[11px] text-likho-coral/90 px-1">{mode.message}</p>
+          )}
+          <button
+            type="button"
+            onClick={() => setMode({ kind: "options" })}
+            className="text-[11px] text-white/55 hover:text-white/85 mt-1"
+          >
+            ← back
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 flex flex-col text-center px-1">
       <div className="flex flex-col items-center pt-1">
@@ -465,6 +620,14 @@ function GatedScreen({
           <div className="text-[11px] text-white/65">
             First 50 only. Reserve your spot now.
           </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setMode({ kind: "signin", email: "" })}
+          className="text-[11px] text-white/60 hover:text-white/90 mt-1.5 underline-offset-2 hover:underline"
+        >
+          Already a Founding or Pro member? Sign in
         </button>
       </div>
     </div>
