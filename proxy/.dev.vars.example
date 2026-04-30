@@ -1,0 +1,5 @@
+# Copy this file to `.dev.vars` and fill in your real Gemini API key.
+# `.dev.vars` is gitignored — never commit it.
+# Get a key from: https://aistudio.google.com/apikey  (use a personal Google
+# account — Workspace org policies block API-key access to Gemini).
+GEMINI_API_KEY=AIza-REPLACE_ME

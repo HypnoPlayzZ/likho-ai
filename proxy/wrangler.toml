@@ -1,0 +1,9 @@
+name = "likho-proxy"
+main = "src/index.ts"
+compatibility_date = "2025-10-01"
+
+# Day 4: dev only — runs at http://localhost:8787 via `wrangler dev`.
+# Production deploy comes Day 8 alongside Clerk auth.
+
+[dev]
+port = 8787

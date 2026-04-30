@@ -32,6 +32,20 @@
 - [x] Handle empty clipboard gracefully ("Select some text first" message).
 - [x] 150ms delay after simulated Ctrl+C before reading clipboard (per MISTAKES.md).
 
+## Day 4 — End-to-End AI Rewrite ✅
+
+- [x] Scaffold `proxy/` Cloudflare Worker (wrangler.toml, tsconfig, package.json, .dev.vars/.dev.vars.example, .gitignore).
+- [x] Implement single `POST /rewrite` endpoint — input validation, CORS, error mapping, cost-guard logging (chars + timing only, never content).
+- [x] Switch default model from Claude Haiku 4.5 to Gemini Flash 2.5 (DECISIONS.md 2026-04-30).
+- [x] Disable Gemini's "thinking" mode for rewrite calls — keeps latency under the 2.5s CLAUDE.md budget.
+- [x] Wire desktop to proxy: capture → POST → render rewrite. Spinner + friendly error states (no jargon).
+- [x] Capabilities file: `src-tauri/capabilities/default.json` — without it, Tauri 2 IPC silently hangs.
+- [x] Fix global-shortcut deadlock (defer register/unregister to spawned threads).
+- [x] Fix Esc-reopens-overlay bug (filter global handler on `Code::Space`).
+- [x] Fix Ctrl+C empty-clipboard bug (80ms delay so user releases Alt; force Alt-up; use VK_C).
+- [x] Verified end-to-end: Hinglish input ("mera naam chetan hai kripya kaam dhang se karo") → clean professional English in ~1.6s.
+- [x] MISTAKES.md updated with all six lessons learned today.
+
 ## This Week (Days 1–7): Foundation
 
 | Day | Goal |
@@ -39,7 +53,7 @@
 | 1 | Setup + validation prep ✅ goal |
 | 2 | Hello-world overlay on hotkey |
 | 3 | Selected text capture from any app ✅ |
-| 4 | First AI rewrite end-to-end (single tone, no auth yet) |
+| 4 | First AI rewrite end-to-end (single tone, no auth yet) ✅ |
 | 5 | 3 tone variants + click-to-replace |
 | 6 | Hinglish auto-detection mode |
 | 7 | Self-test all day. Fix list of 20+ items. |

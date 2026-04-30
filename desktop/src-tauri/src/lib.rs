@@ -1,6 +1,6 @@
 use tauri::{Emitter, Manager};
 use tauri::tray::TrayIconBuilder;
-use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
+use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, ShortcutState};
 use std::thread;
 use std::time::Duration;
 
@@ -47,9 +47,16 @@ fn position_near_cursor(window: &tauri::WebviewWindow) {
 fn hide_overlay(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("overlay") {
         let _ = window.hide();
+        let _ = window.emit("overlay-hidden", ());
     }
-    let _ = app.global_shortcut().unregister("Escape");
-    let _ = app.emit("overlay-hidden", ());
+    // Defer unregister to a separate thread. The global-shortcut plugin holds
+    // an internal Mutex for the entire duration of any handler invocation, and
+    // unregister() tries to take the same Mutex — calling it inline deadlocks
+    // the UI thread (Windows reports it as AppHangB1).
+    let app_handle = app.clone();
+    thread::spawn(move || {
+        let _ = app_handle.global_shortcut().unregister("Escape");
+    });
 }
 
 /// Capture selected text from any Windows app using the clipboard method.
@@ -75,17 +82,28 @@ fn capture_selected_text() -> String {
         let _ = c.clear();
     }
 
-    // Simulate Ctrl+C — source app still has focus, so keystrokes go there
+    // Wait briefly so the user can release Alt before we send Ctrl+C.
+    // Alt+Space is the trigger, so when the handler fires the physical Alt
+    // key is almost always still held — sending Ctrl+C while Alt is down
+    // becomes Ctrl+Alt+C and never copies anything.
+    thread::sleep(Duration::from_millis(80));
+
+    // Simulate Ctrl+C — source app still has focus, so keystrokes go there.
+    // Use VK_C (0x43) instead of Key::Unicode('c'): the latter can fall back
+    // to KEYEVENTF_UNICODE injection on some Windows configs, which sends a
+    // WM_CHAR-style event that doesn't trigger Ctrl+C accelerators.
     {
         use enigo::{Enigo, Key, Keyboard, Settings, Direction};
         if let Ok(mut enigo) = Enigo::new(&Settings::default()) {
+            // Force-release Alt as a safety net in case the user is still holding it.
+            let _ = enigo.key(Key::Alt, Direction::Release);
             let _ = enigo.key(Key::Control, Direction::Press);
-            let _ = enigo.key(Key::Unicode('c'), Direction::Click);
+            let _ = enigo.key(Key::Other(0x43), Direction::Click); // VK_C
             let _ = enigo.key(Key::Control, Direction::Release);
         }
     }
 
-    // Wait 150ms per MISTAKES.md
+    // Wait 150ms per MISTAKES.md — clipboard write is async after Ctrl+C.
     thread::sleep(Duration::from_millis(150));
 
     // Read captured text
@@ -115,8 +133,15 @@ pub fn run() {
             tauri_plugin_global_shortcut::Builder::new()
                 .with_shortcuts(["Alt+Space"])
                 .unwrap()
-                .with_handler(|app, _shortcut, event| {
+                .with_handler(|app, shortcut, event| {
                     if event.state() != ShortcutState::Pressed {
+                        return;
+                    }
+                    // The plugin invokes this global handler for EVERY registered
+                    // shortcut, including Escape. Without this guard, an Escape press
+                    // would hide the overlay (via the per-shortcut handler) and then
+                    // immediately re-show it here. Only act on Alt+Space.
+                    if shortcut.key != Code::Space {
                         return;
                     }
 
@@ -128,27 +153,33 @@ pub fn run() {
                     if is_visible {
                         hide_overlay(app);
                     } else {
-                        let app_handle = app.clone();
+                        // Show overlay immediately (source app keeps focus — no set_focus call)
+                        position_near_cursor(&window);
+                        let _ = window.show();
+
+                        // Register Escape while overlay is visible.
+                        // Must run on a separate thread — see deadlock note in hide_overlay.
+                        let app_clone = app.clone();
                         thread::spawn(move || {
-                            // Capture text BEFORE showing overlay (source app still has focus)
-                            let captured = capture_selected_text();
-
-                            // Now show overlay
-                            if let Some(window) = app_handle.get_webview_window("overlay") {
-                                position_near_cursor(&window);
-                                let _ = window.show();
-                            }
-
-                            // Emit captured text to frontend
-                            let _ = app_handle.emit("text-captured", &captured);
-
-                            // Dynamically register Escape so it only captures while overlay is up
-                            let app_clone = app_handle.clone();
-                            let _ = app_handle.global_shortcut().on_shortcut("Escape", move |_app, _shortcut, event| {
+                            let cb_handle = app_clone.clone();
+                            let _ = app_clone.global_shortcut().on_shortcut("Escape", move |_app, _shortcut, event| {
                                 if event.state() == ShortcutState::Pressed {
-                                    hide_overlay(&app_clone);
+                                    hide_overlay(&cb_handle);
                                 }
                             });
+                        });
+
+                        // Capture selected text in background thread
+                        // (overlay is visible but source app still has focus, so Ctrl+C goes there)
+                        let app_handle = app.clone();
+                        thread::spawn(move || {
+                            let captured = capture_selected_text();
+                            // Emit on the overlay window directly. app.emit() broadcast
+                            // does not reliably reach a hidden-then-shown webview's
+                            // listeners on Tauri 2 + Windows; window.emit() does.
+                            if let Some(window) = app_handle.get_webview_window("overlay") {
+                                let _ = window.emit("text-captured", &captured);
+                            }
                         });
                     }
                 })

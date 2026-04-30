@@ -106,6 +106,29 @@
 
 ---
 
+## 2026-04-30 Switch default model from Claude Haiku 4.5 to Gemini Flash 2.5
+
+**Context:** Day 4 — wiring the desktop app to the AI proxy. Founder already holds a Google Gemini API key and is not yet onboarded with Anthropic billing. Standing up Anthropic billing on the same day as Day 4 would block the build until top-up clears.
+
+**Decision:** Use `gemini-2.5-flash` as the default rewrite model via Google's Generative Language API, called from the Cloudflare Worker. Same proxy architecture, same system-prompt principles (Indian English, British spelling, Hinglish handling). System prompt is adapted slightly because Gemini and Claude differ in how strictly they obey "no preamble, plain text only" instructions.
+
+**Alternatives considered:**
+- Sign up for Anthropic and top up: rejected because it stalls Day 4. Founder can revisit after launch when revenue justifies multi-provider billing.
+- OpenAI gpt-4o-mini: founder doesn't hold an OpenAI key either, same blocker.
+- Local model (Ollama): rejected — adds 4GB+ to the install and contradicts the <20MB installer constraint in CLAUDE.md.
+
+**Consequences:**
+- (+) Founder unblocked on Day 4, no payment-step delay.
+- (+) Gemini Flash 2.5 latency is comparable to Haiku 4.5 (~1–2s for short rewrites). Still meets the 2.5s budget.
+- (+) Gemini Flash free tier (15 RPM, 1M tokens/day) is enough for solo development and early testers without immediate cost.
+- (−) Gemini's instruction-following on "JSON only, no markdown" is less strict than Claude's. Day 5 (3-tone JSON output) will need defensive parsing — strip ```json fences, handle trailing prose.
+- (−) System prompt needs re-tuning per provider. Patterns in SKILLS.md still apply conceptually; the exact prompt is now project-specific.
+- (−) Indian English / Hinglish output quality between the two is comparable in spot-checks but not formally evaluated. Should A/B both providers post-launch on a sample of real user rewrites before locking in long-term.
+
+**Follow-ups:** Add a provider abstraction (env-selectable) when/if we want to swap back or run both. Not done in v1 — keeping Day 4 minimal.
+
+---
+
 ## (Add more entries as we build)
 
 > Template:

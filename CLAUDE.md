@@ -101,7 +101,7 @@ likho-ai/
 | Desktop UI | React 18 + TailwindCSS | Yes |
 | Desktop language | Rust (backend) + TypeScript (frontend) | Yes |
 | AI proxy | Cloudflare Workers | Yes |
-| AI model | Claude Haiku 4.5 (default), Sonnet 4.6 (hard cases) | Yes |
+| AI model | Gemini Flash 2.5 (default — see DECISIONS.md 2026-04-30) | Yes |
 | Auth | Clerk (free tier) | Yes |
 | Database | Supabase Postgres (free tier) | Yes |
 | Payments | Razorpay (primary) + Stripe (intl) | Yes — Razorpay for UPI |
@@ -139,7 +139,7 @@ likho-ai/
 
 ## Current Phase
 
-**Day 3 — Selected Text Capture.** Alt+Space captures selected text from any app via Ctrl+C simulation and displays it in the overlay. Clipboard preserved.
+**Day 4 — End-to-End AI Rewrite.** Alt+Space → captures selected text → posts to local Cloudflare Worker proxy → returns one professional rewrite from Gemini Flash 2.5 → renders in overlay. ~1.6s round trip. No auth/rate limits yet (Day 8).
 
 Update this section at the start of each week. Format:
 ```

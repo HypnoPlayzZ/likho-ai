@@ -17,8 +17,10 @@ target/
 .env.local
 .env.production
 .dev.vars
-.dev.vars.*
+.dev.vars.local
+.dev.vars.production
 !.env.example
+!.dev.vars.example
 
 # Tauri build artifacts
 desktop/src-tauri/target/

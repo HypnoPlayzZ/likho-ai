@@ -96,6 +96,42 @@ function safeParse(text: string): Rewrites {
 **Fix:** [What we did]
 **Prevention:** [How to avoid in future]
 
+### [Apr 30, 2026] — Tauri 2 webview hangs forever on `listen()` if no capabilities file exists
+**What happened:** Frontend `listen("text-captured", ...)` from `@tauri-apps/api/event` never resolved. UI rendered but events from Rust were never received. Spent ~30 minutes adding debug instrumentation before realizing.
+**Root cause:** Tauri 2 uses an ACL/capabilities system. If `src-tauri/capabilities/*.json` doesn't exist, the generated capabilities are `{}` — meaning the webview has zero IPC permissions. `listen()` makes an IPC call to register the listener; that call hangs forever (not rejects) because the permission isn't denied so much as not granted.
+**Fix:** Created `src-tauri/capabilities/default.json` with `core:default`, `core:event:default`, `core:window:default`, `core:webview:default` and `windows: ["overlay"]`.
+**Prevention:** Every new Tauri 2 project needs a capabilities file from day one. The Tauri CLI scaffold normally creates one; if you scaffold manually (we did), you have to add it. If `listen()` calls hang silently, suspect capabilities first.
+
+### [Apr 30, 2026] — `tauri-plugin-global-shortcut` deadlocks when handler calls `on_shortcut`/`unregister`
+**What happened:** App froze ("not responding") on every Alt+Space press. Windows logged `AppHangB1` in the Application event log.
+**Root cause:** The plugin's event dispatcher holds an internal `Mutex<HashMap>` for the *entire duration* of the user's handler invocation (see `tauri-plugin-global-shortcut-2.3.1/src/lib.rs:417`). Calling `on_shortcut(...)` or `unregister(...)` from inside the handler tries to take the same Mutex → deadlock → UI thread freezes → AppHang.
+**Fix:** Defer dynamic register/unregister to a separate `std::thread::spawn` so the handler returns and releases the lock before the (un)registration runs.
+**Prevention:** Never call any plugin method that touches the shortcuts registry from inside `with_handler`. If you need dynamic register/unregister (we do — we register Escape only when overlay is visible), use `thread::spawn`.
+
+### [Apr 30, 2026] — Global `with_handler` fires for every shortcut, not just the one you registered
+**What happened:** After fixing the deadlock, pressing Esc would hide the overlay and then immediately re-show it near the cursor.
+**Root cause:** `tauri-plugin-global-shortcut`'s dispatcher calls BOTH the per-shortcut handler set via `on_shortcut("Escape", ...)` AND the global handler set via `with_handler(...)` for every event. Esc hid the overlay (per-shortcut), then the global handler ran, saw `is_visible == false`, and re-opened it.
+**Fix:** In the global handler, guard with `if shortcut.key != Code::Space { return; }` so only Alt+Space triggers the toggle logic.
+**Prevention:** When using both `with_handler` and `on_shortcut`, always check which shortcut fired in the global handler.
+
+### [Apr 30, 2026] — Don't simulate Ctrl+C while the user is still holding Alt
+**What happened:** Selected text capture worked locally for hand-held tests but produced empty clipboard on real Alt+Space presses.
+**Root cause:** The global hotkey handler fires the moment the OS detects Alt+Space. The user's physical Alt key is still held down. Sending synthetic Ctrl+C immediately means the app sees Ctrl+**Alt**+C, which is not a copy command. Clipboard stays empty.
+**Fix:** Sleep ~80ms before sending Ctrl+C so the user has time to release Alt. As a safety net, also send a synthetic Alt-up via enigo first. Use `Key::Other(0x43)` (VK_C) instead of `Key::Unicode('c')` for more reliable accelerator handling on Windows.
+**Prevention:** Any "synthesise an OS shortcut from inside a hotkey handler" flow needs to wait for the trigger key to be released first.
+
+### [Apr 30, 2026] — `app.emit()` doesn't reach hidden-then-shown webview's listeners reliably
+**What happened:** Even with capabilities fixed, broadcasting `app.emit("text-captured", ...)` from a spawned Rust thread sometimes didn't reach the React listener.
+**Root cause:** Not fully nailed down — likely an ordering quirk between webview lifecycle (hidden→shown) and the global emit channel on Windows + WebView2. The window-scoped emit went through reliably while the broadcast didn't.
+**Fix:** Use `app.get_webview_window("overlay").emit("text-captured", ...)` instead of `app.emit(...)`. Window-scoped emits go through the window's IPC channel directly and don't rely on the broadcast routing.
+**Prevention:** When emitting to a *known* target window, prefer `window.emit()` over `app.emit()`. Reserve `app.emit()` for genuine multi-window broadcasts (which we don't have).
+
+### [Apr 30, 2026] — Google Cloud API keys are blocked from Gemini API by default in Workspace orgs
+**What happened:** Used a Google API key from a personal-looking Cloud Console project; got `API_KEY_SERVICE_BLOCKED` even after enabling Gemini API on the project.
+**Root cause:** If the Google account is part of a Workspace organisation (`@spectatr.ai`, etc.), an org policy blocks API keys from accessing Vertex/Gemini APIs unless the key is bound to a service account. Even creating a "new project" inside that org inherits the policy.
+**Fix:** Use a personal `@gmail.com` account with Google AI Studio (`https://aistudio.google.com/apikey`) — keys created there are on Google-managed projects outside any org policy.
+**Prevention:** For free-tier Gemini access, always use AI Studio with a personal Google account. Never use the same account that's tied to a Workspace org.
+
 ---
 
 ## Mistakes Discovered Post-Launch
