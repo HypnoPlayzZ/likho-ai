@@ -139,7 +139,7 @@ likho-ai/
 
 ## Current Phase
 
-**Day 6 — Hinglish Auto-Detection.** Same three-tone flow as Day 5, plus Gemini now classifies input as `english` / `hinglish` / `mixed` and the overlay shows a small badge for the latter two. Detection runs at the prompt level (no second API call). Indian English idioms still classify as `english` — no false positives. Still no auth/rate limits (Day 8).
+**Day 7 — UI Polish + Glass Theme.** Dark transparent glass surface with native Windows Acrylic blur, saffron-orange accents, fade-in animation on overlay-shown, Lucide icons per tone, skeleton shimmer cards while AI computes, "Replaced ✓" toast on click-to-replace, refined empty state, kbd-style key hints. Window resized to 440×320 for three tones to breathe.
 
 Update this section at the start of each week. Format:
 ```

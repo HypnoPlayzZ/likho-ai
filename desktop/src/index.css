@@ -11,4 +11,67 @@ body,
   height: 100%;
   overflow: hidden;
   background: transparent;
+  /* The overlay floats over arbitrary apps; smoothing gives white-on-glass
+     text crisper edges across Windows DPIs. */
+  -webkit-font-smoothing: antialiased;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  /* Subtle drop shadow on all text inside the overlay. Stabilises orange
+     and white text legibility when the desktop behind happens to have
+     bright/varied content (light wallpapers, photos, video). Cheap, no
+     visual cost on dark backgrounds. */
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+/* Custom thin scrollbar for any overflow areas (tone cards if rewrite is long).
+   Default Windows scrollbars look heavy on a dark glass surface. */
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* Fade-in + slight slide-down for the overlay on each appearance.
+   Re-triggered by a key bump in App.tsx whenever Rust emits "overlay-shown". */
+@keyframes overlay-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-overlay-in {
+  animation: overlay-in 200ms ease-out;
+}
+
+/* Shimmer used by skeleton loading cards while AI is computing.
+   A diagonal sheen sweeps across a subtle base. */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 0%,
+    rgba(255, 255, 255, 0.10) 50%,
+    rgba(255, 255, 255, 0.04) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
 }

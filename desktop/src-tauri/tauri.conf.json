@@ -15,8 +15,8 @@
       {
         "label": "overlay",
         "title": "Likho",
-        "width": 380,
-        "height": 220,
+        "width": 440,
+        "height": 320,
         "decorations": false,
         "transparent": true,
         "alwaysOnTop": true,

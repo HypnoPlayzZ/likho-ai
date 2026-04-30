@@ -10,8 +10,8 @@ fn position_near_cursor(window: &tauri::WebviewWindow) {
         Err(_) => return,
     };
 
-    let overlay_w = 380.0_f64;
-    let overlay_h = 220.0_f64;
+    let overlay_w = 440.0_f64;
+    let overlay_h = 320.0_f64;
     let mut x = cursor_pos.x + 10.0;
     let mut y = cursor_pos.y + 10.0;
 
@@ -222,6 +222,11 @@ pub fn run() {
                         // Show overlay immediately (source app keeps focus — no set_focus call)
                         position_near_cursor(&window);
                         let _ = window.show();
+                        // Tell JS the overlay just appeared so the fade-in
+                        // animation can re-trigger via a key bump. React
+                        // doesn't unmount on hide, so without this we'd only
+                        // see the animation on the very first open.
+                        let _ = window.emit("overlay-shown", ());
 
                         // Register Escape while overlay is visible.
                         // Must run on a separate thread — see deadlock note in hide_overlay.
@@ -256,6 +261,19 @@ pub fn run() {
                 .tooltip("Likho — Alt+Space to rewrite")
                 .on_tray_icon_event(|_tray, _event| {})
                 .build(app)?;
+
+            // Real desktop blur on Windows requires a native API — CSS
+            // backdrop-filter is honoured by WebView2 only against
+            // same-document DOM, not the OS desktop. apply_blur is broken
+            // on Win 11 and apply_mica is too tinted to feel glassy, so
+            // we use apply_acrylic. The blur intensity is fixed by Windows;
+            // we pull the perceived weight down by using a light tint
+            // (RGBA 0,0,0,50 ≈ 20% black) so the desktop shows through
+            // properly while still being blurred.
+            #[cfg(target_os = "windows")]
+            if let Some(window) = app.get_webview_window("overlay") {
+                let _ = window_vibrancy::apply_acrylic(&window, Some((0, 0, 0, 50)));
+            }
 
             Ok(())
         })

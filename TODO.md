@@ -42,15 +42,42 @@
 - [x] Switched `gemini-2.5-flash` → `gemini-2.5-flash-lite` mid-day after the flash free tier (~20 req/day) ran out. DECISIONS.md has the variant note.
 - [x] Verified all 5 cases: pure English idiom, pure Hinglish, mixed, short Hinglish ("kya haal hai bhai"), single-Hindi-word edge case ("Looking forward to the meeting yaar").
 
-## Day 7 — Self-test day (planned)
+## Day 7 — UI polish + glass theme ✅
+
+(The Day 7 self-test pass moves to Day 9; founder pivoted Day 7 to a UI/UX polish pass and Day 8 to demo mode + waitlist for pre-launch validation. See DECISIONS.md.)
+
+- [x] Glass theme: dark transparent surface, white text hierarchy, saffron-orange accents (Indian-flavoured, replaces brand indigo for accents on glass).
+- [x] Native Windows Acrylic blur via `window-vibrancy` crate. CSS backdrop-filter doesn't blur the OS desktop in WebView2 — needed the OS API. Light tint (`(0,0,0,50)`) keeps the desktop genuinely visible.
+- [x] Window resized 380×220 → 440×320 to give three tone cards room to breathe.
+- [x] Fade-in + slight slide-down animation (200ms ease-out) on every overlay-shown event (re-triggered via React key bump).
+- [x] Tone cards: hover bumps to subtle saffron tint + 1% scale, label flips to white. Click affordance now obvious on glass.
+- [x] Lucide icons for each tone (Briefcase / Zap / Smile) and the language badge (Languages icon).
+- [x] Skeleton shimmer cards while AI is computing — same outer shape as live cards, two grey shimmer bars per card.
+- [x] "Replaced ✓" emerald check toast for 1s after a successful click-to-replace; overlay then auto-hides.
+- [x] Empty-state: cursor-icon-in-circle with `Alt + Space` shown as keycap-style `<kbd>` badges.
+- [x] Esc hint in footer styled as a `<kbd>` badge.
+- [x] index.css: text-shadow on body for legibility against bright wallpapers behind the glass; thin custom scrollbar.
+
+## Day 8 — Demo mode + founding-member waitlist + Pro teaser (today)
+
+- [ ] First-launch intro screen: "Try Likho free — 5 rewrites, no signup".
+- [ ] localStorage demo counter capped at 5 lifetime.
+- [ ] Subtle "X of 5 demo rewrites used" pill on each rewrite.
+- [ ] Gated screen at 5: two CTAs — sign-up free (placeholder for Clerk Day 9), reserve founding spot.
+- [ ] Pro teaser pill in overlay corner; click opens a glass modal with launch copy + email-capture.
+- [ ] Email capture writes to Cloudflare KV via worker `/waitlist` endpoint. Returns position. Local KV mock works in `wrangler dev`; prod needs `wrangler kv:namespace create` on deploy.
+- [ ] Hardcoded "37 spots left" — will be `50 - kv_count` once we wire the live count in (Day 9 polish).
+- [ ] DECISIONS.md entry for "demo + waitlist before auth/DB" — pre-launch validation strategy.
+
+## Day 9+ — Self-test pass + auth/DB rollout (deferred)
 
 - [ ] Run through all real-world target apps: Outlook, Gmail web, WhatsApp Desktop, LinkedIn, Excel, Tally. Note where capture/replace fails.
-- [ ] Test on long input (200+ chars). Verify overlay sizing or implement scroll/expand.
-- [ ] Test multi-monitor positioning (overlay should clamp to monitor under cursor).
-- [ ] Test rapid-fire Alt+Space presses (debounce/race conditions).
-- [ ] Test on a fresh user clipboard (no prior content) and on one with rich-text content.
-- [ ] Build the production .msi installer and run it on a clean Windows VM if available — verify no runtime/dep issues per MISTAKES.md.
-- [ ] Compile a list of 20+ items found and prioritise into Day 7 evening fix-list.
+- [ ] Test long input (200+ chars), multi-monitor positioning, rapid-fire Alt+Space, fresh/rich-text clipboard.
+- [ ] Build production `.msi` installer; test on clean Windows VM.
+- [ ] Provision Cloudflare KV namespace for waitlist (1 command).
+- [ ] Provision Supabase project + migrate waitlist out of KV into a real `founding_member_waitlist` table.
+- [ ] Provision Clerk; wire the gated-screen sign-up CTA to magic-link.
+- [ ] Server-side demo rate limit (currently client-only via localStorage; install-id fingerprint can land here).
 
 ## Day 5 — Three Tones + Click-to-Replace ✅
 
@@ -85,7 +112,9 @@
 | 4 | First AI rewrite end-to-end (single tone, no auth yet) ✅ |
 | 5 | 3 tone variants + click-to-replace ✅ |
 | 6 | Hinglish auto-detection mode ✅ |
-| 7 | Self-test all day. Fix list of 20+ items. |
+| 7 | UI polish: glass theme, animations, icons, skeletons, replaced toast ✅ |
+| 8 | Demo mode + founding-member waitlist + Pro teaser modal |
+| 9 | Originally Day 7 self-test pass + auth/DB. Reslotted. |
 
 ## Backlog (not yet scheduled)
 
