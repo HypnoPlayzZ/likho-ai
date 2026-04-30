@@ -17,6 +17,16 @@ interface Env {
 const FOUNDING_AMOUNT_PAISE = 490000;
 const FOUNDING_CURRENCY = "INR";
 
+// Pro monthly plan, created via Razorpay Plans API.
+//   ₹299 / month · plan_SjlmaGFnRAAXCw
+// Locked here so the client can't pass an arbitrary plan id. If we add
+// more tiers (yearly, etc.), make this a server-side lookup, never trust
+// a plan id from the client.
+const PRO_PLAN_ID = "plan_SjlmaGFnRAAXCw";
+// 12 monthly charges = 1 year cycle. Razorpay requires total_count for
+// subscriptions; pick a long horizon and renew via webhook later.
+const PRO_TOTAL_COUNT = 12;
+
 // Day 8: founding-member waitlist (PRD pricing — first 50 lifetime at ₹4,900).
 // Total cap is conservative enforcement only; the front-end shows "37 left"
 // hardcoded today and will switch to live count when this number is shown
@@ -138,11 +148,15 @@ export default {
       return handleRewrite(request, env, "app");
     }
 
-    // Razorpay checkout (founding-member flow). Two endpoints:
-    //   POST /razorpay/order  — create a Razorpay order, return order_id + key_id
-    //   POST /razorpay/verify — verify the post-payment signature, record entry
+    // Razorpay checkout. Three endpoints:
+    //   POST /razorpay/order        — create order (founding-member, one-time)
+    //   POST /razorpay/subscription — create subscription (Pro, monthly recurring)
+    //   POST /razorpay/verify       — verify signature for either flow
     if (url.pathname === "/razorpay/order" && request.method === "POST") {
       return handleRazorpayCreateOrder(request, env);
+    }
+    if (url.pathname === "/razorpay/subscription" && request.method === "POST") {
+      return handleRazorpayCreateSubscription(request, env);
     }
     if (url.pathname === "/razorpay/verify" && request.method === "POST") {
       return handleRazorpayVerify(request, env);
@@ -463,6 +477,71 @@ async function handleRazorpayCreateOrder(request: Request, env: Env): Promise<Re
   });
 }
 
+async function handleRazorpayCreateSubscription(
+  request: Request,
+  env: Env,
+): Promise<Response> {
+  if (!env.RAZORPAY_KEY_ID || !env.RAZORPAY_KEY_SECRET) {
+    console.log("[razorpay] missing_credentials");
+    return json({ error: "razorpay_not_configured" }, 500);
+  }
+
+  let body: { email?: unknown };
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "invalid_json" }, 400);
+  }
+
+  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+  if (!email || !isValidEmail(email)) {
+    return json({ error: "invalid_email" }, 400);
+  }
+
+  const auth = "Basic " + btoa(`${env.RAZORPAY_KEY_ID}:${env.RAZORPAY_KEY_SECRET}`);
+
+  let upstream: Response;
+  try {
+    upstream = await fetch("https://api.razorpay.com/v1/subscriptions", {
+      method: "POST",
+      headers: { Authorization: auth, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        plan_id: PRO_PLAN_ID,
+        total_count: PRO_TOTAL_COUNT,
+        customer_notify: 1,
+        notes: { email, plan: "pro_monthly" },
+      }),
+    });
+  } catch (e) {
+    console.log(`[razorpay] subscription_network_error msg=${(e as Error).message}`);
+    return json({ error: "razorpay_unreachable" }, 502);
+  }
+
+  if (upstream.status === 401 || upstream.status === 403) {
+    return json({ error: "razorpay_auth_failed" }, 401);
+  }
+  if (!upstream.ok) {
+    const errBody = await upstream.text().catch(() => "");
+    console.log(
+      `[razorpay] subscription_error status=${upstream.status} body=${errBody.slice(0, 300)}`,
+    );
+    return json({ error: "razorpay_error", status: upstream.status }, 500);
+  }
+
+  const sub = (await upstream.json()) as { id?: string; status?: string };
+  if (!sub.id) {
+    return json({ error: "razorpay_bad_response" }, 502);
+  }
+
+  console.log(`[razorpay] subscription_created id=${sub.id} email_chars=${email.length}`);
+  return json({
+    subscription_id: sub.id,
+    plan_id: PRO_PLAN_ID,
+    key_id: env.RAZORPAY_KEY_ID,
+    status: sub.status ?? "created",
+  });
+}
+
 async function handleRazorpayVerify(request: Request, env: Env): Promise<Response> {
   if (!env.RAZORPAY_KEY_SECRET) {
     return json({ error: "razorpay_not_configured" }, 500);
@@ -470,6 +549,7 @@ async function handleRazorpayVerify(request: Request, env: Env): Promise<Respons
 
   let body: {
     razorpay_order_id?: unknown;
+    razorpay_subscription_id?: unknown;
     razorpay_payment_id?: unknown;
     razorpay_signature?: unknown;
     email?: unknown;
@@ -480,56 +560,86 @@ async function handleRazorpayVerify(request: Request, env: Env): Promise<Respons
     return json({ error: "invalid_json" }, 400);
   }
 
-  const orderId = typeof body.razorpay_order_id === "string" ? body.razorpay_order_id : "";
   const paymentId = typeof body.razorpay_payment_id === "string" ? body.razorpay_payment_id : "";
   const signature = typeof body.razorpay_signature === "string" ? body.razorpay_signature : "";
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+  const orderId = typeof body.razorpay_order_id === "string" ? body.razorpay_order_id : "";
+  const subscriptionId =
+    typeof body.razorpay_subscription_id === "string" ? body.razorpay_subscription_id : "";
 
-  if (!orderId || !paymentId || !signature) {
+  if (!paymentId || !signature || (!orderId && !subscriptionId)) {
     return json({ error: "missing_fields" }, 400);
   }
 
-  const ok = await verifyRazorpaySignature(
-    orderId,
-    paymentId,
-    signature,
-    env.RAZORPAY_KEY_SECRET,
-  );
+  // Two signature schemes:
+  //   Order        — HMAC(order_id        + "|" + payment_id, secret)
+  //   Subscription — HMAC(payment_id      + "|" + subscription_id, secret)  ← reversed!
+  const dataString = subscriptionId
+    ? `${paymentId}|${subscriptionId}`
+    : `${orderId}|${paymentId}`;
+
+  const ok = await verifyRazorpaySignature(dataString, signature, env.RAZORPAY_KEY_SECRET);
   if (!ok) {
-    console.log(`[razorpay] sig_mismatch order=${orderId} payment=${paymentId}`);
+    console.log(
+      `[razorpay] sig_mismatch payment=${paymentId} ${subscriptionId ? `sub=${subscriptionId}` : `order=${orderId}`}`,
+    );
     return json({ error: "signature_mismatch" }, 400);
   }
 
-  // Signature verified — record the paid founding-member entry.
+  if (subscriptionId) {
+    // Pro subscription mandate authorized.
+    const recordKey = `pro:subscription:${subscriptionId}`;
+    const existing = await env.LIKHO_KV.get(recordKey);
+    if (!existing) {
+      await env.LIKHO_KV.put(
+        recordKey,
+        JSON.stringify({
+          email: email || null,
+          subscription_id: subscriptionId,
+          first_payment_id: paymentId,
+          ts: Date.now(),
+        }),
+      );
+      const prev = await env.LIKHO_KV.get("pro:_count");
+      const next = (prev ? parseInt(prev, 10) || 0 : 0) + 1;
+      await env.LIKHO_KV.put("pro:_count", String(next));
+      console.log(
+        `[razorpay] pro_subscribed #${next} sub=${subscriptionId} email_chars=${email.length}`,
+      );
+    }
+    return json({ ok: true, kind: "subscription", subscription_id: subscriptionId });
+  }
+
+  // Founding-member one-time order.
   const recordKey = `founding:payment:${paymentId}`;
   const existing = await env.LIKHO_KV.get(recordKey);
   if (!existing) {
-    const record = {
-      email: email || null,
-      amount: FOUNDING_AMOUNT_PAISE,
-      currency: FOUNDING_CURRENCY,
-      payment_id: paymentId,
-      order_id: orderId,
-      ts: Date.now(),
-    };
-    await env.LIKHO_KV.put(recordKey, JSON.stringify(record));
-    const prevCount = await env.LIKHO_KV.get("founding:_count");
-    const next = (prevCount ? parseInt(prevCount, 10) || 0 : 0) + 1;
+    await env.LIKHO_KV.put(
+      recordKey,
+      JSON.stringify({
+        email: email || null,
+        amount: FOUNDING_AMOUNT_PAISE,
+        currency: FOUNDING_CURRENCY,
+        payment_id: paymentId,
+        order_id: orderId,
+        ts: Date.now(),
+      }),
+    );
+    const prev = await env.LIKHO_KV.get("founding:_count");
+    const next = (prev ? parseInt(prev, 10) || 0 : 0) + 1;
     await env.LIKHO_KV.put("founding:_count", String(next));
-    console.log(`[razorpay] founding_paid #${next} payment=${paymentId} email_chars=${email.length}`);
-  } else {
-    console.log(`[razorpay] duplicate_verify payment=${paymentId} (already recorded)`);
+    console.log(
+      `[razorpay] founding_paid #${next} payment=${paymentId} email_chars=${email.length}`,
+    );
   }
-
-  return json({ ok: true, payment_id: paymentId, order_id: orderId });
+  return json({ ok: true, kind: "order", payment_id: paymentId, order_id: orderId });
 }
 
 // HMAC-SHA256 verification using Web Crypto. Razorpay returns the signature
 // as lowercase hex; we hex-decode it and use crypto.subtle.verify, which
 // performs a constant-time comparison.
 async function verifyRazorpaySignature(
-  orderId: string,
-  paymentId: string,
+  data: string,
   signatureHex: string,
   secret: string,
 ): Promise<boolean> {
@@ -542,8 +652,7 @@ async function verifyRazorpaySignature(
     false,
     ["verify"],
   );
-  const data = new TextEncoder().encode(`${orderId}|${paymentId}`);
-  return crypto.subtle.verify("HMAC", key, sigBytes, data);
+  return crypto.subtle.verify("HMAC", key, sigBytes, new TextEncoder().encode(data));
 }
 
 function hexToBytes(hex: string): Uint8Array | null {

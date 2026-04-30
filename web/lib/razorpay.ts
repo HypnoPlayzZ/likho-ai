@@ -59,10 +59,70 @@ export async function createRazorpayOrder(email: string): Promise<RazorpayCreate
   }
 }
 
+// Razorpay Subscriptions (Pro tier).
+export interface RazorpaySubscription {
+  subscription_id: string;
+  plan_id: string;
+  key_id: string;
+  status: string;
+}
+
+export interface RazorpayCreateSubscriptionResult {
+  ok: boolean;
+  subscription?: RazorpaySubscription;
+  error?: "invalid_email" | "razorpay_auth_failed" | "razorpay_error" | "network";
+  message?: string;
+}
+
+export async function createRazorpaySubscription(
+  email: string,
+): Promise<RazorpayCreateSubscriptionResult> {
+  try {
+    const res = await fetch(`${API_BASE}/razorpay/subscription`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 400) {
+      return { ok: false, error: "invalid_email", message: "Please enter a valid email." };
+    }
+    if (res.status === 401) {
+      return {
+        ok: false,
+        error: "razorpay_auth_failed",
+        message: "Payment provider unavailable. Please try again later.",
+      };
+    }
+    if (!res.ok || !data.subscription_id) {
+      return {
+        ok: false,
+        error: "razorpay_error",
+        message: "Couldn't start checkout. Please retry.",
+      };
+    }
+    return {
+      ok: true,
+      subscription: {
+        subscription_id: data.subscription_id,
+        plan_id: data.plan_id,
+        key_id: data.key_id,
+        status: data.status,
+      },
+    };
+  } catch {
+    return { ok: false, error: "network", message: "Couldn't reach the server. Please retry." };
+  }
+}
+
+// Razorpay returns these on successful payment for both order and subscription
+// flows. For orders the subscription_id is undefined; for subscriptions
+// the order_id is undefined. Verify endpoint branches on which is set.
 export interface RazorpaySuccessFields {
-  razorpay_order_id: string;
   razorpay_payment_id: string;
   razorpay_signature: string;
+  razorpay_order_id?: string;
+  razorpay_subscription_id?: string;
 }
 
 export interface RazorpayVerifyResult {
@@ -107,12 +167,15 @@ export async function verifyRazorpayPayment(
 }
 
 // Razorpay's checkout.js attaches a global `Razorpay` constructor when loaded.
-// We type only what we use to keep the surface minimal.
+// We type only what we use to keep the surface minimal. Either order_id or
+// subscription_id must be set (depending on flow) — checkout.js distinguishes
+// based on which one is provided.
 export interface RazorpayCheckoutOptions {
   key: string;
-  order_id: string;
-  amount: number;
-  currency: string;
+  order_id?: string;
+  subscription_id?: string;
+  amount?: number;
+  currency?: string;
   name: string;
   description: string;
   prefill?: { email?: string; name?: string };

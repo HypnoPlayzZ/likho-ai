@@ -20,6 +20,7 @@ import {
 import { InteractiveMockup } from "@/components/InteractiveMockup";
 import { Section } from "@/components/Section";
 import { RazorpayCheckout } from "@/components/RazorpayCheckout";
+import { RazorpayProSubscribe } from "@/components/RazorpayProSubscribe";
 
 // Stable filename uploaded to every GitHub release. Versioned filenames
 // (e.g. Likho_0.2.0_x64_en-US.msi) would break this URL on the next bump.
@@ -273,11 +274,11 @@ function Pricing() {
     },
     {
       name: "Pro",
-      tag: "Launching May 2026",
+      tag: "Available now",
       price: "₹299",
       sub: "/month, unlimited",
       bullets: ["Unlimited rewrites", "Voice mode", "Long-email summaries", "Custom tone presets"],
-      cta: { label: "Get notified", href: "#founding" },
+      subscribe: true as const,
       featured: false,
     },
     {
@@ -336,7 +337,7 @@ function Pricing() {
                   </li>
                 ))}
               </ul>
-              {t.cta && (
+              {"cta" in t && t.cta && (
                 <a
                   href={t.cta.href}
                   className={`mt-6 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-full text-sm font-bold transition-all ${
@@ -348,6 +349,11 @@ function Pricing() {
                   {t.cta.label}
                   <ArrowRight className="w-4 h-4" strokeWidth={2.5} />
                 </a>
+              )}
+              {"subscribe" in t && t.subscribe && (
+                <div className="mt-6">
+                  <RazorpayProSubscribe />
+                </div>
               )}
             </div>
           ))}
