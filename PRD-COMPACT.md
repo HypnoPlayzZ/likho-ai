@@ -11,12 +11,13 @@ Indian English-second-language professionals. ~200M TAM. 6 segments: sales reps,
 ## Why now
 Existing tools (Grammarly, ChatGPT) have wrong context for Indian English. Hinglish unsupported. Browser-based = high friction. Desktop-native + Indian-context-aware = open positioning.
 
-## Pricing
-- Free: 20 rewrites/day, 3 tones, basic Hinglish
-- Pro: ₹299/mo unlimited, voice mode, summary mode
-- Pro Annual: ₹2,499/yr (save 30%)
-- Team: ₹199/seat/mo (5+ seats)
-- Founding Lifetime: ₹4,900 one-time, capped at first 50
+## Pricing (v0.3.0)
+- Free: 5 lifetime demo rewrites
+- Pro: ₹299/mo unlimited rewrites, 3 tones, full Hinglish — **no voice mode**
+- Pro+: ₹499/mo everything in Pro **plus voice mode (Alt+V)**, summary mode, custom presets
+- Pro+ Annual: ₹4,199/yr (save 30%)
+- Team: ₹199/seat/mo (5+ seats) — Pro tier
+- Founding Lifetime: ₹4,900 one-time, capped at first 50, **everything for life including voice**
 
 ## P0 Features (v1.0 — must ship in 30 days)
 1. Global hotkey (Alt+Space, configurable)
@@ -24,19 +25,21 @@ Existing tools (Grammarly, ChatGPT) have wrong context for Indian English. Hingl
 3. 3-tone AI rewrite (Professional / Concise / Friendly)
 4. One-click replace in source app
 5. Hinglish → English mode
-6. Free tier with 20/day limit, server-enforced
-7. Razorpay UPI/card subscription
-8. Email-only auth (Clerk magic link)
+6. Free tier with demo cap (5 lifetime), server-enforced
+7. Razorpay UPI/card subscription (Pro + Pro+ + Founding)
+8. Email-only sign-in (license check by email)
 9. System tray + settings panel
 10. Code-signed installer + auto-update
+11. **Voice mode (Alt+V)** — Pro+ feature (shipped Day 10, v0.3.0). Whisper ASR + Claude Haiku 4.5 polish. Hindi/English/Hinglish.
 
 ## P1 Features (v1.1 — weeks 5–8)
-- Voice mode (Alt+V)
 - Long-text summarization (Alt+S)
 - Custom tone presets
 - Personal phrase library
 - Outlook plugin
 - Lakh/crore auto-conversion
+- Live waveform during voice recording (currently a pulsing dot)
+- Magic-link sign-in (currently email-only license check)
 
 ## P2 Features (v2 — months 3–6)
 - Team plans + brand voice

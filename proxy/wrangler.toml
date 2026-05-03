@@ -16,3 +16,19 @@ port = 8787
 [[kv_namespaces]]
 binding = "LIKHO_KV"
 id = "3bc0cb004fde47598727e822c5a5a3a2"
+
+# Workers AI binding (Day 10, v0.3.0). Free tier 10K neurons/day — covers
+# the entire test phase. Drives /voice when OPENAI_API_KEY / ANTHROPIC_API_KEY
+# aren't set: whisper-large-v3-turbo for ASR, llama-3.3-70b for the polish
+# step. Same Cloudflare account, no extra signup, no billing required.
+# Once we have paying customers and want best-in-class quality, add the
+# OPENAI/ANTHROPIC secrets and the worker auto-switches without code change.
+[ai]
+binding = "AI"
+
+# Cron pre-warm (v0.4.1). Fires every 5 minutes to keep the v8 isolate
+# warm — first-request latency drops from ~200ms cold to ~30ms warm.
+# The scheduled handler in src/index.ts is a no-op; the cron trigger
+# itself is the warming mechanism. Free under Workers' cron quota.
+[triggers]
+crons = ["*/5 * * * *"]

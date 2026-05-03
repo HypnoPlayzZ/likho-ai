@@ -116,11 +116,11 @@ export function InteractiveMockup() {
   return (
     <div className="glass-card-strong rounded-3xl p-5 w-full max-w-md">
       <div className="flex items-center gap-2 mb-4">
-        <div className="text-[10px] font-bold text-likho-indigo tracking-[0.25em] uppercase">
+        <div className="text-[10px] font-bold text-primary tracking-[0.25em] uppercase">
           Likho
         </div>
-        <span className="h-px flex-1 bg-likho-indigo/15" />
-        <span className="text-[9px] uppercase tracking-wider font-semibold text-likho-slate">
+        <span className="h-px flex-1 bg-primary-container/15" />
+        <span className="text-[9px] uppercase tracking-wider font-semibold text-on-surface-variant">
           Demo
         </span>
       </div>
@@ -134,7 +134,7 @@ export function InteractiveMockup() {
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.18 }}
           >
-            <p className="text-[11px] uppercase tracking-wider font-semibold text-likho-slate mb-2">
+            <p className="text-[11px] uppercase tracking-wider font-semibold text-on-surface-variant mb-2">
               Pick a sample to see Likho rewrite it
             </p>
             <div className="space-y-2">
@@ -143,24 +143,24 @@ export function InteractiveMockup() {
                   key={i}
                   type="button"
                   onClick={() => onPick(s)}
-                  className="group block w-full text-left rounded-xl px-3 py-2.5 bg-white/55 hover:bg-white/85 border border-likho-indigo/15 hover:border-likho-indigo/40 transition-all hover:scale-[1.01] active:scale-[1.0]"
+                  className="group block w-full text-left rounded-xl px-3 py-2.5 bg-surface-container/55 hover:bg-surface-container-high border border-primary/15 hover:border-primary/40 transition-all hover:scale-[1.01] active:scale-[1.0]"
                 >
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[9px] uppercase tracking-[0.18em] font-bold text-likho-indigo">
+                    <span className="text-[9px] uppercase tracking-[0.18em] font-bold text-primary">
                       {s.label}
                     </span>
                     <ArrowRight
-                      className="ml-auto w-3.5 h-3.5 text-likho-slate group-hover:text-likho-indigo group-hover:translate-x-0.5 transition-all"
+                      className="ml-auto w-3.5 h-3.5 text-on-surface-variant group-hover:text-primary group-hover:translate-x-0.5 transition-all"
                       strokeWidth={2.5}
                     />
                   </div>
-                  <p className="text-sm text-likho-ink italic leading-snug">
+                  <p className="text-sm text-on-surface italic leading-snug">
                     "{s.original}"
                   </p>
                 </button>
               ))}
             </div>
-            <p className="mt-3 text-[10px] text-center text-likho-slate">
+            <p className="mt-3 text-[10px] text-center text-on-surface-variant">
               Want to try your own text? Download the app — works on any Windows app.
             </p>
           </motion.div>
@@ -208,13 +208,13 @@ export function InteractiveMockup() {
               <button
                 type="button"
                 onClick={onReset}
-                className="text-xs text-likho-indigo font-semibold hover:underline"
+                className="text-xs text-primary font-semibold hover:underline"
               >
                 ← Try another sample
               </button>
               <a
                 href="#download"
-                className="inline-flex items-center gap-1 text-[11px] font-bold text-likho-indigo hover:text-likho-orange transition-colors"
+                className="inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:text-secondary transition-colors"
               >
                 <Download className="w-3 h-3" strokeWidth={2.5} />
                 Try your own text
@@ -235,16 +235,16 @@ function OriginalSnippet({
   lang?: DetectedLanguage;
 }) {
   return (
-    <div className="flex items-start gap-2 mb-3 pb-3 border-b border-likho-indigo/15">
+    <div className="flex items-start gap-2 mb-3 pb-3 border-b border-primary/15">
       <p
-        className="text-xs text-likho-slate italic flex-1 min-w-0 line-clamp-2"
+        className="text-xs text-on-surface-variant italic flex-1 min-w-0 line-clamp-2"
         title={text}
       >
         "{text}"
       </p>
       {lang && lang !== "english" && (
         <span
-          className="shrink-0 inline-flex items-center gap-1 text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full bg-likho-indigo/10 border border-likho-indigo/30 text-likho-indigo"
+          className="shrink-0 inline-flex items-center gap-1 text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full bg-primary-container/10 border border-primary/30 text-primary"
           title={lang === "hinglish" ? "Detected: Hinglish" : "Detected: mixed"}
         >
           <Languages className="w-2.5 h-2.5" strokeWidth={2.5} />
@@ -274,14 +274,14 @@ function ToneCard({
       initial={{ opacity: 0, x: -8 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: 0.05 * TONES.indexOf(tone), duration: 0.22 }}
-      className="group block w-full text-left rounded-xl p-2.5 bg-white/55 hover:bg-white/85 border border-likho-indigo/15 hover:border-likho-indigo/40 transition-all hover:scale-[1.01] active:scale-[1.0]"
+      className="group block w-full text-left rounded-xl p-2.5 bg-surface-container/55 hover:bg-surface-container-high border border-primary/15 hover:border-primary/40 transition-all hover:scale-[1.01] active:scale-[1.0]"
     >
       <div className="flex items-center gap-2 mb-1">
-        <Icon className="w-3.5 h-3.5 text-likho-indigo shrink-0" strokeWidth={2.25} />
-        <span className="text-[10px] uppercase tracking-[0.18em] font-bold text-likho-indigo">
+        <Icon className="w-3.5 h-3.5 text-primary shrink-0" strokeWidth={2.25} />
+        <span className="text-[10px] uppercase tracking-[0.18em] font-bold text-primary">
           {label}
         </span>
-        <span className="ml-auto text-[10px] text-likho-slate group-hover:text-likho-indigo font-semibold transition-colors">
+        <span className="ml-auto text-[10px] text-on-surface-variant group-hover:text-primary font-semibold transition-colors">
           {copied ? (
             <span className="inline-flex items-center gap-1 text-emerald-600">
               <Check className="w-3 h-3" strokeWidth={3} /> Copied
@@ -291,7 +291,7 @@ function ToneCard({
           )}
         </span>
       </div>
-      <p className="text-sm text-likho-ink leading-snug whitespace-pre-wrap break-words">
+      <p className="text-sm text-on-surface leading-snug whitespace-pre-wrap break-words">
         {text}
       </p>
     </motion.button>
@@ -301,10 +301,10 @@ function ToneCard({
 function SkeletonCard({ tone }: { tone: Tone }) {
   const { Icon, label } = TONE_META[tone];
   return (
-    <div className="rounded-xl p-2.5 bg-white/40 border border-likho-indigo/10">
+    <div className="rounded-xl p-2.5 bg-surface-container/40 border border-primary/10">
       <div className="flex items-center gap-2 mb-2">
-        <Icon className="w-3.5 h-3.5 text-likho-indigo/50" strokeWidth={2.25} />
-        <span className="text-[10px] uppercase tracking-[0.18em] font-bold text-likho-indigo/50">
+        <Icon className="w-3.5 h-3.5 text-primary/50" strokeWidth={2.25} />
+        <span className="text-[10px] uppercase tracking-[0.18em] font-bold text-primary/50">
           {label}
         </span>
       </div>
@@ -318,6 +318,6 @@ function SkeletonCard({ tone }: { tone: Tone }) {
 
 export function HeroSparkle() {
   return (
-    <Sparkles className="w-3.5 h-3.5 text-likho-indigo" strokeWidth={2.5} />
+    <Sparkles className="w-3.5 h-3.5 text-primary" strokeWidth={2.5} />
   );
 }

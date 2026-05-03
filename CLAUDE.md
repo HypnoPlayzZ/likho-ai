@@ -139,7 +139,9 @@ likho-ai/
 
 ## Current Phase
 
-**Day 9 — Marketing Landing Page.** Public Next.js 14 page deployed to Vercel (`web-6nykedtei-hypnoplayzzs-projects.vercel.app`) with hero, interactive mockup (driven by Worker `/landing-rewrite`, 3/day per IP), problem/how-it-works/features sections, pricing teaser, founder note, FAQ, footer. Founding-member email capture (`/waitlist`) shares the desktop app's KV-backed waitlist. White-glass aesthetic mirrors the desktop overlay's dark glass.
+**Day 12 — Reply-to-thread (v0.5.0).** Likho now writes replies, not just rewrites drafts. Select an email or message → press Alt+R → get 3 reply drafts in 3 tones, adapted to the audience selector. Server-side: `/rewrite` accepts `mode: "rewrite" | "reply"`, branches the system prompt; cache key includes mode so reply and rewrite for the same input cache separately. Rust: Alt+R global shortcut + new `text-captured` payload `{ text, mode }` (backwards-compatible with v0.4.x). Frontend: new `replying` / `reply_done` states, reply-mode "Replying to" header, click-tone-to-copy semantics (no source selection to overwrite).
+
+Stack still entirely on Cloudflare Workers AI free tier. See [COSTS.md](COSTS.md).
 
 Update this section at the start of each week. Format:
 ```

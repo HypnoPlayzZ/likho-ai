@@ -1,9 +1,23 @@
-use tauri::{Emitter, Manager};
+mod audio;
+
+use tauri::{Emitter, Manager, State};
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, ShortcutState};
+use serde::Serialize;
 use std::thread;
 use std::time::Duration;
+
+use crate::audio::VoiceRecorder;
+
+/// Payload for the `text-captured` event emitted to the React side.
+/// `mode` distinguishes Alt+Space (rewrite) from Alt+R (reply) so the
+/// frontend can pick the right system prompt and UI flow.
+#[derive(Serialize, Clone)]
+struct CapturedText {
+    text: String,
+    mode: &'static str, // "rewrite" or "reply"
+}
 
 fn position_near_cursor(window: &tauri::WebviewWindow) {
     let cursor_pos = match window.cursor_position() {
@@ -11,8 +25,8 @@ fn position_near_cursor(window: &tauri::WebviewWindow) {
         Err(_) => return,
     };
 
-    let overlay_w = 440.0_f64;
-    let overlay_h = 320.0_f64;
+    let overlay_w = 460.0_f64;
+    let overlay_h = 380.0_f64;
     let mut x = cursor_pos.x + 10.0;
     let mut y = cursor_pos.y + 10.0;
 
@@ -43,6 +57,142 @@ fn position_near_cursor(window: &tauri::WebviewWindow) {
     }
 
     let _ = window.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
+}
+
+// ---------- Hotkey handlers ----------
+
+fn handle_alt_space(app: &tauri::AppHandle) {
+    let Some(window) = app.get_webview_window("overlay") else {
+        return;
+    };
+    let is_visible = window.is_visible().unwrap_or(false);
+
+    if is_visible {
+        hide_overlay(app);
+        return;
+    }
+
+    // Show overlay immediately (source app keeps focus — no set_focus call)
+    position_near_cursor(&window);
+    let _ = window.show();
+    // Tell JS the overlay just appeared so the fade-in animation can
+    // re-trigger via a key bump. React doesn't unmount on hide, so without
+    // this we'd only see the animation on the very first open.
+    let _ = window.emit("overlay-shown", ());
+
+    // Register Escape while overlay is visible. Must run on a separate
+    // thread — see deadlock note in hide_overlay.
+    let app_clone = app.clone();
+    thread::spawn(move || {
+        let cb_handle = app_clone.clone();
+        let _ = app_clone.global_shortcut().on_shortcut(
+            "Escape",
+            move |_app, _shortcut, event| {
+                if event.state() == ShortcutState::Pressed {
+                    hide_overlay(&cb_handle);
+                }
+            },
+        );
+    });
+
+    // Capture selected text in background thread (overlay is visible but
+    // source app still has focus, so Ctrl+C goes there).
+    let app_handle = app.clone();
+    thread::spawn(move || {
+        let captured = capture_selected_text();
+        // Emit on the overlay window directly. app.emit() broadcast does
+        // not reliably reach a hidden-then-shown webview's listeners on
+        // Tauri 2 + Windows; window.emit() does.
+        if let Some(window) = app_handle.get_webview_window("overlay") {
+            let _ = window.emit(
+                "text-captured",
+                CapturedText { text: captured, mode: "rewrite" },
+            );
+        }
+    });
+}
+
+/// Alt+R — capture selected message/thread, open overlay, ask AI for a
+/// REPLY (not a rewrite of the selection). Same capture mechanism as
+/// Alt+Space; the React side branches on the `mode` payload field to
+/// choose between rewrite and reply flows.
+fn handle_alt_r(app: &tauri::AppHandle) {
+    let Some(window) = app.get_webview_window("overlay") else {
+        return;
+    };
+
+    // Show overlay immediately so the user gets visual feedback while the
+    // capture-then-API roundtrip happens. Same focus discipline as
+    // Alt+Space — source app keeps focus so Ctrl+C goes there.
+    position_near_cursor(&window);
+    let _ = window.show();
+    let _ = window.emit("overlay-shown", ());
+
+    // Register Escape while overlay is visible (same as Alt+Space).
+    let app_clone = app.clone();
+    thread::spawn(move || {
+        let cb_handle = app_clone.clone();
+        let _ = app_clone.global_shortcut().on_shortcut(
+            "Escape",
+            move |_app, _shortcut, event| {
+                if event.state() == ShortcutState::Pressed {
+                    hide_overlay(&cb_handle);
+                }
+            },
+        );
+    });
+
+    // Capture in a background thread. The captured selection IS the
+    // message being replied to — we don't paste anything back into the
+    // source app (Alt+R outputs go to clipboard for the user to paste
+    // into their reply editor manually).
+    let app_handle = app.clone();
+    thread::spawn(move || {
+        let captured = capture_selected_text();
+        if let Some(window) = app_handle.get_webview_window("overlay") {
+            let _ = window.emit(
+                "text-captured",
+                CapturedText { text: captured, mode: "reply" },
+            );
+        }
+    });
+}
+
+fn handle_alt_v_pressed(app: &tauri::AppHandle) {
+    let Some(window) = app.get_webview_window("overlay") else {
+        return;
+    };
+
+    // Show overlay near cursor and emit voice:start. The React side does
+    // its license check, then either invokes the voice_start command (if
+    // entitled) or shows the upgrade modal (if not).
+    position_near_cursor(&window);
+    let _ = window.show();
+    let _ = window.emit("overlay-shown", ());
+    let _ = window.emit("voice:start", ());
+
+    // Register Escape — same dynamic registration as Alt+Space, so the
+    // user can bail out of recording with Esc.
+    let app_clone = app.clone();
+    thread::spawn(move || {
+        let cb_handle = app_clone.clone();
+        let _ = app_clone.global_shortcut().on_shortcut(
+            "Escape",
+            move |_app, _shortcut, event| {
+                if event.state() == ShortcutState::Pressed {
+                    hide_overlay(&cb_handle);
+                }
+            },
+        );
+    });
+}
+
+fn handle_alt_v_released(app: &tauri::AppHandle) {
+    // Tell JS the user released the chord; JS owns the rest of the
+    // flow (invoke voice_stop, upload audio, render result).
+    if let Some(window) = app.get_webview_window("overlay") {
+        let _ = window.emit("voice:stop", ());
+    }
 }
 
 fn hide_overlay(app: &tauri::AppHandle) {
@@ -190,70 +340,84 @@ fn replace_selection(app: tauri::AppHandle, new_text: String) -> Result<(), Stri
     Ok(())
 }
 
+/// Voice mode (v0.3.0) — Tauri commands invoked from React.
+/// Entitlement gating is server-side (in /voice). These commands just
+/// drive the local audio device.
+#[tauri::command]
+fn voice_start(recorder: State<VoiceRecorder>) -> Result<(), String> {
+    recorder.start()
+}
+
+#[tauri::command]
+fn voice_stop(recorder: State<VoiceRecorder>) -> Result<Vec<u8>, String> {
+    recorder.stop()
+}
+
+/// Cancel an in-flight recording without returning the audio. Used when
+/// the user is gated (license check fails after recording started) so we
+/// don't waste the buffer encoding a WAV nobody will upload.
+#[tauri::command]
+fn voice_cancel(recorder: State<VoiceRecorder>) -> Result<(), String> {
+    // We don't have a separate "discard" path through the worker — easiest
+    // way to reuse the existing stop/encode path is to call stop() and
+    // ignore the bytes. Cheap (a few MB on the heap, freed immediately)
+    // and avoids divergent state machines in the worker.
+    let _ = recorder.stop();
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .invoke_handler(tauri::generate_handler![replace_selection])
+        .manage(VoiceRecorder::spawn())
+        .invoke_handler(tauri::generate_handler![
+            replace_selection,
+            voice_start,
+            voice_stop,
+            voice_cancel
+        ])
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
-                .with_shortcuts(["Alt+Space"])
+                // Alt+Space — toggle the rewrite overlay (existing).
+                // Alt+V    — voice mode (v0.3.0). Press-and-hold.
+                // Alt+R    — reply mode (v0.5.0). Selects an email/thread
+                //            and asks AI to draft a REPLY in 3 tones,
+                //            instead of rewriting the user's draft.
+                .with_shortcuts(["Alt+Space", "Alt+V", "Alt+R"])
                 .unwrap()
                 .with_handler(|app, shortcut, event| {
-                    if event.state() != ShortcutState::Pressed {
+                    // The plugin invokes this global handler for EVERY
+                    // registered shortcut on BOTH Pressed and Released.
+                    // Dispatch carefully.
+                    let state = event.state();
+                    let key = shortcut.key;
+
+                    // Alt+Space — toggle overlay in rewrite mode.
+                    if key == Code::Space && state == ShortcutState::Pressed {
+                        handle_alt_space(app);
                         return;
                     }
-                    // The plugin invokes this global handler for EVERY registered
-                    // shortcut, including Escape. Without this guard, an Escape press
-                    // would hide the overlay (via the per-shortcut handler) and then
-                    // immediately re-show it here. Only act on Alt+Space.
-                    if shortcut.key != Code::Space {
+
+                    // Alt+R — capture text + open overlay in reply mode.
+                    if key == Code::KeyR && state == ShortcutState::Pressed {
+                        handle_alt_r(app);
                         return;
                     }
 
-                    let Some(window) = app.get_webview_window("overlay") else {
+                    // Alt+V — voice mode (press-and-hold).
+                    if key == Code::KeyV {
+                        match state {
+                            ShortcutState::Pressed => handle_alt_v_pressed(app),
+                            ShortcutState::Released => handle_alt_v_released(app),
+                        }
                         return;
-                    };
-                    let is_visible = window.is_visible().unwrap_or(false);
-
-                    if is_visible {
-                        hide_overlay(app);
-                    } else {
-                        // Show overlay immediately (source app keeps focus — no set_focus call)
-                        position_near_cursor(&window);
-                        let _ = window.show();
-                        // Tell JS the overlay just appeared so the fade-in
-                        // animation can re-trigger via a key bump. React
-                        // doesn't unmount on hide, so without this we'd only
-                        // see the animation on the very first open.
-                        let _ = window.emit("overlay-shown", ());
-
-                        // Register Escape while overlay is visible.
-                        // Must run on a separate thread — see deadlock note in hide_overlay.
-                        let app_clone = app.clone();
-                        thread::spawn(move || {
-                            let cb_handle = app_clone.clone();
-                            let _ = app_clone.global_shortcut().on_shortcut("Escape", move |_app, _shortcut, event| {
-                                if event.state() == ShortcutState::Pressed {
-                                    hide_overlay(&cb_handle);
-                                }
-                            });
-                        });
-
-                        // Capture selected text in background thread
-                        // (overlay is visible but source app still has focus, so Ctrl+C goes there)
-                        let app_handle = app.clone();
-                        thread::spawn(move || {
-                            let captured = capture_selected_text();
-                            // Emit on the overlay window directly. app.emit() broadcast
-                            // does not reliably reach a hidden-then-shown webview's
-                            // listeners on Tauri 2 + Windows; window.emit() does.
-                            if let Some(window) = app_handle.get_webview_window("overlay") {
-                                let _ = window.emit("text-captured", &captured);
-                            }
-                        });
                     }
+
+                    // Escape and anything else: ignored here. Escape has
+                    // its own per-shortcut handler registered when the
+                    // overlay shows.
                 })
                 .build(),
         )

@@ -11,6 +11,12 @@ target/
 *.msi
 *.dmg
 *.AppImage
+*.sig
+*.tsbuildinfo
+
+# Release staging directories — installers + manifests for GitHub releases.
+# The GitHub release page is the source of truth, no need to track these.
+release-v*/
 
 # Environment variables — NEVER commit these
 .env

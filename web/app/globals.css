@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -8,60 +10,62 @@ html {
 
 body {
   font-family:
+    "Inter",
     -apple-system,
     BlinkMacSystemFont,
     "Segoe UI",
     system-ui,
     sans-serif;
   -webkit-font-smoothing: antialiased;
-  color: #1f2937;
+  background-color: #0b1326;
+  color: #dae2fd;
+  letter-spacing: -0.005em;
 }
 
-/* Sunrise/sunset gradient backdrop. Layered so the warm tones bleed
-   into a deeper purple at the edges — gives the white glass cards a
-   constantly-varying surface to sit on without us shipping image assets. */
+/* M3 dark-indigo backdrop. Replaces the v0.5.x sunrise gradient. Two soft
+   blurred glow blobs (primary indigo + secondary mint) sit on a deep
+   indigo base — same constantly-varying surface for cards to rest on,
+   now in the dark theme that matches the desktop overlay. */
 .likho-bg {
   background:
-    radial-gradient(ellipse 80% 60% at 20% 10%, #fde68a 0%, transparent 60%),
-    radial-gradient(ellipse 70% 60% at 80% 20%, #fda4af 0%, transparent 55%),
-    radial-gradient(ellipse 80% 70% at 50% 90%, #c4b5fd 0%, transparent 60%),
-    radial-gradient(ellipse 60% 50% at 90% 80%, #fbbf24 0%, transparent 50%),
-    linear-gradient(135deg, #fef9f0 0%, #fce7f3 40%, #ede9fe 100%);
+    radial-gradient(ellipse 80% 60% at 20% 10%, rgba(62, 82, 232, 0.22) 0%, transparent 60%),
+    radial-gradient(ellipse 70% 60% at 80% 20%, rgba(78, 222, 163, 0.10) 0%, transparent 55%),
+    radial-gradient(ellipse 80% 70% at 50% 90%, rgba(188, 194, 255, 0.10) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 50% at 90% 80%, rgba(62, 82, 232, 0.16) 0%, transparent 50%),
+    linear-gradient(135deg, #0b1326 0%, #131b2e 40%, #0b1326 100%);
 }
 
-/* White glass card surface. Used everywhere across the landing page so the
-   aesthetic matches the desktop overlay's dark glass equivalent. Heavy
-   backdrop-blur softens the gradient behind, white tint keeps the cards
-   readable, subtle border + ring suggest the edge of glass. */
+/* Dark glass card. Translucent surface-variant on top of the dark backdrop,
+   blurred to feel like real frosted glass. Used everywhere across the
+   landing page so the aesthetic matches the desktop overlay's glass card. */
 .glass-card {
-  background-color: rgba(255, 255, 255, 0.55);
-  backdrop-filter: blur(24px) saturate(140%);
-  -webkit-backdrop-filter: blur(24px) saturate(140%);
-  border: 1px solid rgba(255, 255, 255, 0.7);
+  background-color: rgba(45, 52, 73, 0.4);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  border: 1px solid rgba(143, 143, 161, 0.2);
   box-shadow:
-    0 1px 0 0 rgba(255, 255, 255, 0.9) inset,
-    0 12px 40px -12px rgba(31, 41, 55, 0.18);
+    0 1px 0 0 rgba(188, 194, 255, 0.06) inset,
+    0 12px 40px -12px rgba(0, 0, 0, 0.4);
 }
 
-/* Heavier white-glass for the interactive overlay mockup so it stands out
-   against everything around it. */
+/* Heavier dark-glass for the interactive overlay mockup. */
 .glass-card-strong {
-  background-color: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(32px) saturate(160%);
-  -webkit-backdrop-filter: blur(32px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.85);
+  background-color: rgba(34, 42, 61, 0.7);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid rgba(143, 143, 161, 0.25);
   box-shadow:
-    0 1px 0 0 rgba(255, 255, 255, 0.95) inset,
-    0 24px 60px -16px rgba(55, 48, 163, 0.22);
+    0 1px 0 0 rgba(188, 194, 255, 0.08) inset,
+    0 24px 60px -16px rgba(0, 0, 0, 0.6);
 }
 
-/* Shimmer for skeleton loaders inside the interactive mockup. */
+/* Shimmer for skeleton loaders inside the interactive mockup. M3-tinted. */
 .shimmer-light {
   background: linear-gradient(
     90deg,
-    rgba(55, 48, 163, 0.06) 0%,
-    rgba(55, 48, 163, 0.14) 50%,
-    rgba(55, 48, 163, 0.06) 100%
+    rgba(188, 194, 255, 0.04) 0%,
+    rgba(188, 194, 255, 0.14) 50%,
+    rgba(188, 194, 255, 0.04) 100%
   );
   background-size: 200% 100%;
   animation: shimmer 1.4s ease-in-out infinite;

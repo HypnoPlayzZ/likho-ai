@@ -1,6 +1,6 @@
 [package]
 name = "likho-ai-desktop"
-version = "0.2.3"
+version = "0.6.0"
 description = "Likho.ai - AI writing overlay for Indian professionals"
 authors = ["Chetan"]
 edition = "2021"
@@ -26,3 +26,11 @@ arboard = "3"
 # requires a Windows API call. window-vibrancy wraps DwmEnableBlurBehind /
 # SetWindowCompositionAttribute / DwmSetWindowAttribute.
 window-vibrancy = "0.6"
+# Voice mode (v0.3.0). cpal captures mic audio via Windows WASAPI; hound
+# encodes the captured PCM as a WAV file we can ship to the Worker. We use
+# Rust-native capture instead of WebView2 getUserMedia because WebView2
+# denies microphone access by default and granting it requires intercepting
+# the WebView's PermissionRequested event via webview2-com — a deeper FFI
+# rabbit hole than just owning the audio thread ourselves.
+cpal = "0.15"
+hound = "3.5"

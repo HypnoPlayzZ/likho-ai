@@ -129,6 +129,72 @@ export async function createRazorpaySubscription(
   }
 }
 
+// Pro+ subscription (₹499/mo, voice mode + everything in Pro). Requires
+// the Worker to have RAZORPAY_PRO_PLUS_PLAN_ID set — until then we surface
+// the `pro_plus_not_configured` error so the UI can show "launching soon".
+export interface RazorpayCreateProPlusSubscriptionResult {
+  ok: boolean;
+  subscription?: RazorpaySubscription;
+  error?:
+    | "invalid_email"
+    | "razorpay_auth_failed"
+    | "razorpay_error"
+    | "pro_plus_not_configured"
+    | "network";
+  message?: string;
+}
+
+export async function createRazorpayProPlusSubscription(
+  email: string,
+): Promise<RazorpayCreateProPlusSubscriptionResult> {
+  try {
+    const res = await fetch(`${API_BASE}/razorpay/subscription_pro_plus`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 400) {
+      return { ok: false, error: "invalid_email", message: "Please enter a valid email." };
+    }
+    if (res.status === 503) {
+      // Plan id not configured yet — friendly message points to founding.
+      return {
+        ok: false,
+        error: "pro_plus_not_configured",
+        message:
+          data.message ??
+          "Pro+ checkout is launching shortly. Founding members already have voice mode.",
+      };
+    }
+    if (res.status === 401) {
+      return {
+        ok: false,
+        error: "razorpay_auth_failed",
+        message: "Payment provider unavailable. Please try again later.",
+      };
+    }
+    if (!res.ok || !data.subscription_id) {
+      return {
+        ok: false,
+        error: "razorpay_error",
+        message: "Couldn't start checkout. Please retry.",
+      };
+    }
+    return {
+      ok: true,
+      subscription: {
+        subscription_id: data.subscription_id,
+        plan_id: data.plan_id,
+        key_id: data.key_id,
+        status: data.status,
+      },
+    };
+  } catch {
+    return { ok: false, error: "network", message: "Couldn't reach the server. Please retry." };
+  }
+}
+
 // Razorpay returns these on successful payment for both order and subscription
 // flows. For orders the subscription_id is undefined; for subscriptions
 // the order_id is undefined. Verify endpoint branches on which is set.

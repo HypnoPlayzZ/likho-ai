@@ -200,6 +200,137 @@
 
 ---
 
+## 2026-05-01 Voice Mode pipeline + Pro+ tier (Day 10, v0.3.0)
+
+**Context:** Founder asked to ship voice mode — hold Alt+V, speak Hindi/English/Hinglish, get polished business English. The PRD originally listed voice in the Pro tier (₹299), but we pivoted: voice ships as part of a new **Pro+ tier (₹499/mo)** with founding members (₹4,900 lifetime) grandfathered in. Plain Pro stays text-only at ₹299. Reasoning: voice has a real per-use cost (Whisper $0.006/min + Claude polish), so bundling it into the cheapest paid tier would cap our gross margin. Pricing the upsell at ₹499 keeps Pro affordable for the broader market while monetising the heavy users.
+
+**Decision (architecture):**
+
+1. **Audio capture: cpal in Rust, not Web MediaRecorder.** Tauri's WebView2 denies `getUserMedia` by default — granting microphone permission requires intercepting the `PermissionRequested` event on `ICoreWebView2` via `webview2-com`, an unstable FFI surface that varies by WebView2 version. cpal goes straight to WASAPI on Windows, gives us a known-working capture path, and produces samples we control end-to-end. Cost: a dedicated audio thread in Rust (`src-tauri/src/audio.rs`) because `cpal::Stream` is `!Send` on Windows (COM apartment binding).
+
+2. **WAV not Opus.** hound writes 16-bit PCM WAV from the cpal f32 buffer. Whisper accepts WAV, mp3, m4a, wav, opus etc., and the WAV size at 60s mono 48kHz (≈5.7MB) is well under the Worker's 8MB ceiling. Using opus would have added rust-opus or `audiopus` deps, more failure surface, and saved <70% bandwidth at the cost of significant complexity.
+
+3. **Pipeline: Whisper → polish LLM.** Whisper auto-detects language (no `language` field — works well across Hindi/English/Hinglish). Polish uses a locked system prompt that converts Hinglish idioms ("do the needful", "PFA") to clean professional English. After polish, the desktop app pipes the polished text through the existing `/rewrite` endpoint to get 3 tone variants. End-to-end target: under 3s for a 15s clip.
+
+   **Provider routing is automatic** based on which Worker secrets are set:
+   - ASR: `OPENAI_API_KEY` set → OpenAI Whisper-1 (paid). Else → Cloudflare Workers AI `@cf/openai/whisper-large-v3-turbo` (free, 10K neurons/day).
+   - Polish: `ANTHROPIC_API_KEY` set → Claude Haiku 4.5 (paid). Else → Workers AI `@cf/meta/llama-3.3-70b-instruct-fp8-fast` (free).
+   - Both providers fall through to the raw transcript if their upstream fails — better UX than a 500.
+
+   Default deploy needs **zero paid provider keys** — Workers AI is bound automatically via `[ai]` in wrangler.toml. Test phase runs entirely free; production swap is "set the secrets and redeploy", no code change. Surface `asr_provider` and `polish_provider` in the response so we can A/B quality once we have real users.
+
+4. **Server-side gating.** `/voice` calls `lookupTier(email)` and returns 403 `pro_plus_required` for free / plain-Pro users. Client-side license cache (`hasVoiceEntitlement`) is the fast path so we don't even open the mic for non-entitled users — but the server is the source of truth.
+
+5. **Pro+ via Razorpay.** New endpoint `POST /razorpay/subscription_pro_plus` mirrors the existing Pro flow but uses `RAZORPAY_PRO_PLUS_PLAN_ID` (a Worker secret). Until the founder creates that plan in Razorpay dashboard and sets the secret, the endpoint returns `pro_plus_not_configured` — the landing page degrades to "Pro+ launching shortly" and founding-member purchase still works (which already grants voice access).
+
+6. **Verify endpoint plan-aware.** `/razorpay/verify` now fetches the subscription from Razorpay to read its actual `plan_id`, then writes to `pro_plus:subscription:*` or `pro:subscription:*` based on what it actually was. Stops a user from claiming Pro+ entitlement after paying for Pro.
+
+**Alternatives considered:**
+- **Web MediaRecorder via WebView2.** Rejected — WebView2 mic permission is opt-in via host code, and our overlay window's transparent/decorationless config interacts badly with permission UI. cpal sidesteps this entirely.
+- **Polish via Gemini Flash 2.5.** Rejected for v1 — Claude Haiku 4.5's instruction-following on "output ONLY the polished text, no preamble" is materially better than Gemini's, which mattered for a single-shot polish step where any preamble lands in the user's email. Worth the extra provider dep (`ANTHROPIC_API_KEY`).
+- **Voice in Pro tier (₹299).** Rejected on margin (see Context).
+- **Send raw audio direct to Anthropic / OpenAI from the desktop app.** Rejected — same reasoning as the original AI proxy decision (MISTAKES.md "Don't put the API key in the desktop app"). All AI calls go through the Worker.
+
+**Consequences:**
+- (+) Solo-developer-friendly capture path (no WebView2 permission FFI).
+- (+) Pro+ creates a clear monetisation ladder: free → Pro (₹299) → Pro+ (₹499) → Founding (₹4,900 once).
+- (+) Audio buffer never persisted — only lives on the Rust audio thread until WAV-encoded, then in the Worker's request scope, then discarded after Whisper returns.
+- (+) Logs metadata only (duration_s, language, polish_ms, transcript chars/polished chars). Per CLAUDE.md "No telemetry of user text content" + MISTAKES.md "Don't log user text content".
+- (−) Two new external API deps: OpenAI (Whisper) and Anthropic (Haiku). New Worker secrets: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`. Founder needs to add billing to both.
+- (−) Pro+ purchase blocked until founder creates `plan_pro_plus_monthly` (₹499/mo) in Razorpay and sets `RAZORPAY_PRO_PLUS_PLAN_ID`. Until then, voice is unlockable only by founding membership — fine for early customers since the founding tier is the better deal anyway.
+- (−) Existing Pro subscribers (₹299) don't get voice mode, contrary to the original PRD wording. Their welcome email still describes Pro as "unlimited rewrites + 3 tones + Hinglish" with an explicit upsell to Pro+/founding for voice. No bait-and-switch since voice was never delivered to anyone yet.
+- (−) Live waveform visualisation deferred — using a pulsing red dot + live timer for v1. Adequate, but a real waveform would feel more responsive on long clips.
+
+**Follow-ups for the founder (outside this code change):**
+1. Create the Pro+ plan in Razorpay dashboard (₹499/mo recurring), copy the `plan_*` id, set as `RAZORPAY_PRO_PLUS_PLAN_ID` Worker secret.
+2. Set `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` Worker secrets (add billing on both providers).
+3. Update the landing page pricing section to add the Pro+ tier card. Today the desktop voice-gated screen mentions Pro+, but the public marketing page still shows only Pro + Founding. Easy follow-up.
+4. Test on a clean Windows VM before publishing v0.3.0 — voice mode is the first feature that touches the microphone permission flow on Windows. First-press will trigger the Windows microphone privacy prompt; verify the UX.
+
+## 2026-05-01 Cost defenses + provider fallbacks (Day 11, v0.4.1)
+
+**Context:** Founder-and-staff audit before launch. The voice-mode pipeline was running entirely on Cloudflare Workers AI free tier (10K neurons/day) and Gemini Flash 2.5 free tier (~50 RPD on AI Studio). Both held up during testing, but a few hot users would exhaust either quota by lunchtime in week 1, breaking the product for everyone else. Needed cost defenses that keep UX intact.
+
+Also surfaced during the audit: when Gemini quota IS exhausted (which it was, mid-debugging), `/rewrite` returned a hard 502 — no graceful fallback. Total outage. Unacceptable for a paid product.
+
+**Decision:**
+
+1. **Rewrite cache (KV-backed, 24h TTL).** SHA-256 hash of `audience|text` keyed in KV. Cache hit returns the prior `Rewrites` JSON without ever calling Gemini. Cuts AI calls 30-50% on repeat patterns (templated greetings, status updates, follow-up emails). Skipped for inputs <20 chars (overhead not worth it). Cache hits still increment the per-IP daily cap so abuse tracking stays consistent.
+
+2. **Skip-polish heuristic for `/voice`.** Whisper-large-v3-turbo produces clean text. If `detected_language === "en"` AND no filler regex matches (`um|uh|like|you know|matlab|...`), skip the polish LLM entirely and return the raw transcript. ~50% fewer polish calls for English speakers, also faster (one fewer round-trip). Logged as `polish_provider=skipped_clean` for telemetry.
+
+3. **Provider fallback chain on `/rewrite`.** Gemini Flash 2.5 first (structured-output JSON, cheaper, faster). On any failure (network error, non-2xx status, parse failure), fall through to Workers AI Llama 3.3 70B with a JSON-coerced prompt. `/rewrite` now degrades gracefully instead of returning 502 when Gemini quota is hit. Same chain pattern as the `/voice` polish step.
+
+4. **Edge-cache `/founding/count` for 60s.** The landing-page badge polls this on every visitor mount; previously hammered KV. Now Cloudflare Cache API holds a 60s response, so the count is at most 60s stale (founding count rarely changes anyway — at most 50 events in product lifetime). Cuts KV reads ~99% on this endpoint.
+
+5. **Cron pre-warm via `/5 * * * *`.** Cloudflare cron triggers fire every 5 minutes; the scheduled handler is a no-op. The cron firing alone is enough to keep the v8 isolate warm so the next user request doesn't pay cold-start latency. Free under Workers' cron quota.
+
+**Alternatives considered:**
+- **Self-host Whisper on a GPU droplet.** Rejected — operational complexity > savings until 10K daily voice users. Also adds a single point of failure that Cloudflare Workers AI doesn't have.
+- **Move /rewrite to Workers AI as primary, Gemini as fallback.** Tempting (Workers AI is free at scale), but Gemini's structured-output mode is materially more reliable at JSON correctness. Llama 3.3 occasionally adds preamble or breaks the schema; Gemini doesn't. Keep Gemini primary while it works.
+- **Cache /voice transcripts.** Audio bytes vary too much (different sample rates, compressions) for a content hash to be useful. Skipped.
+- **PostHog wired up for telemetry.** Deferred — needs founder to create account + share key. 30-min wire-in once that's done.
+
+**Consequences:**
+- (+) Free tier survives much longer. At 1000 daily users with realistic repeat patterns: ~50% of /rewrite + ~50% of /voice polish = effectively halved AI quota burn.
+- (+) Resilience: `/rewrite` no longer breaks when Gemini quota is hit. Workers AI takes over transparently.
+- (+) `/founding/count` no longer stresses KV under landing-page traffic spikes.
+- (+) Cold-start latency hidden via cron warm.
+- (−) Cache adds 1 KV read on every /rewrite (cache miss path now has 1 extra KV operation). Negligible at our scale; KV reads are nearly free below 100K/day.
+- (−) Workers AI Llama produces marginally worse rewrites than Gemini Flash on edge cases (occasional preamble that the parser strips, occasional JSON field collapse). Acceptable as a degraded-mode fallback; users only see this output when Gemini is unavailable, which should be rare with the cache absorbing repeat traffic.
+
+**Follow-ups (for v0.5.0+):**
+- Audio downsampling in Rust (cpal config or post-capture resample) — cuts /voice upload bandwidth ~80% with zero accuracy hit.
+- PostHog telemetry — needs API key.
+- Sentry error reporting — needs API key.
+- `cleanPolishOutput()` strips wrapping quotes; should also strip leading bullet markers and trailing "Hope this helps!" sign-offs that some models add.
+- Cache invalidation strategy for when we change the system prompt (currently relies on TTL — old cache entries expire within 24h, but a full prompt rewrite means stale results for that window).
+
+## 2026-05-01 Reply-to-thread mode (Day 12, v0.5.0)
+
+**Context:** Tier 1 #2 from the launch-readiness audit. Alt+Space rewrites the user's draft — useful, but only solves half of email pain. The other half is "I don't know how to start a reply." That's where users currently switch tabs to ChatGPT, paste the email they received, ask for a reply, copy back. Five steps where Likho should do one.
+
+**Decision:**
+
+1. **New `mode` parameter on `/rewrite`** — values `"rewrite"` (default) and `"reply"`. Same endpoint, same response schema (4 fields), same audience-aware tones. The system prompt branches significantly per mode. Rejected: a separate `/reply` endpoint — would have meant duplicating cache + provider-fallback + rate-limit code for negligible gain.
+
+2. **Reply system prompt is fundamentally different.** Rewrite mode says "preserve the user's intent." Reply mode says "generate what the user should send back." Reply prompt explicitly:
+   - Treats input as the message *being replied to*, not the draft.
+   - Generates a complete reply (greeting + body + sign-off appropriate to tone).
+   - Addresses each ask in the original.
+   - Leaves `[bracketed placeholders]` where specific info would need filling in (dates, names, numbers).
+   - Always replies in clean English even if the input is Hindi/Hinglish.
+
+3. **Cache key includes mode.** SHA-256 of `${mode}|${audience}|${text}` so reply and rewrite for the same input don't collide.
+
+4. **Alt+R registered as a separate global shortcut.** Not a modifier on Alt+Space (which would have meant changing the existing UX) — a totally separate hotkey with its own handler. Both share the clipboard-capture mechanism.
+
+5. **Tauri event payload changed to include mode.** `text-captured` now emits `{ text, mode }` instead of plain string. Frontend handles both shapes for backwards-compat (older listeners receiving a string fall back to `mode: "rewrite"`).
+
+6. **Reply tones COPY to clipboard, don't replace selection.** The captured text in reply mode is the email being replied to — overwriting it would destroy the user's context. Click → clipboard copy + "Copied" toast + auto-hide overlay. User pastes in their reply box manually.
+
+7. **Audience selector applies to reply mode too.** A reply to a senior reads very differently from a reply to a junior. Live re-roll on audience change works the same way.
+
+**Alternatives considered:**
+- **AI-detect intent automatically** (skip the explicit Alt+R, let AI decide whether the input is a draft to rewrite or a message to reply to). Rejected — ambiguity is real ("Hi can you send the file" could be either) and a wrong guess wastes a Gemini call. Explicit hotkey is cleaner.
+- **Embed an email-thread parser** to handle long threads (Gmail/Outlook quote chains). Deferred — for v0.5.0, the user just selects whatever they want to reply to. Smart parsing can come in v0.6+ if real users complain about long thread handling.
+- **Subject-line generator** as part of reply mode. Skipped — most replies inherit the "Re: …" subject line automatically, so generating one is unnecessary friction.
+- **Reply WITHOUT audience selection** (just default to "professional"). Rejected — losing the differentiator that makes Likho feel Indian-aware.
+
+**Consequences:**
+- (+) Solves half of email pain that Likho previously couldn't touch.
+- (+) Reuses everything: cache, provider fallback, audience UI, kbd shortcuts, tone cards. Build cost ~1 day.
+- (+) Backwards-compatible at every layer: older Worker clients can ignore `mode` and get rewrite. Older desktop clients on a newer Worker still get rewrites. Newer desktop clients on an older Worker (impossible if they auto-update, but worth thinking about) get rewrites for their reply requests since the Worker would treat `mode: "reply"` as unknown and default to rewrite — they'd see a tone-rewrite of the email they received, not a reply. Acceptable degradation.
+- (+) The bracketed-placeholder pattern is explicit in the prompt, so the model surfaces "what info I'd need from you" cleanly without breaking the JSON schema.
+- (−) Reply quality on long email threads is unproven at v0.5.0. Long-thread parsing + reply context is a real challenge — current implementation just sends the raw selected text to the LLM. Real users will tell us where this breaks.
+- (−) No way to "save as draft" — reply tones are ephemeral. User must paste before closing the overlay. Acceptable for v1; "save reply for later" is a v2 feature.
+
+**Follow-ups for v0.6+:**
+- **Subject-line generator** — when reply context lacks a clear "Re:" prefix, suggest one.
+- **Reply-with-context** — let the user add a one-line hint like "(I'm declining, deal fell through)" to steer the reply. Currently no way to pass extra context.
+- **Outlook plugin reply mode** — the plugin should expose Alt+R inside Outlook's reply pane natively, so users don't need to copy-paste.
+- **Long-thread truncation** — if input > 4000 chars (Worker cap), trim to most-recent message + brief summary of older context.
+
 ## (Add more entries as we build)
 
 > Template:

@@ -4,10 +4,10 @@ import {
   Twitter,
   Briefcase,
   Zap,
-  Smile,
   Languages,
   Lock,
   Box,
+  Mic,
   MousePointerClick,
   Keyboard,
   ArrowRight,
@@ -21,6 +21,7 @@ import { InteractiveMockup } from "@/components/InteractiveMockup";
 import { Section } from "@/components/Section";
 import { RazorpayCheckout } from "@/components/RazorpayCheckout";
 import { RazorpayProSubscribe } from "@/components/RazorpayProSubscribe";
+import { RazorpayProPlusSubscribe } from "@/components/RazorpayProPlusSubscribe";
 import { FoundingSpotsBadge } from "@/components/FoundingSpotsBadge";
 
 // Stable filename uploaded to every GitHub release. Versioned filenames
@@ -50,16 +51,16 @@ function Hero() {
     <section className="relative min-h-screen flex items-center px-6 sm:px-10 lg:px-16 py-16 lg:py-24">
       <div className="max-w-7xl mx-auto w-full grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
         <div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full glass-card text-[11px] uppercase tracking-[0.2em] font-bold text-likho-indigo mb-6">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full glass-card text-[11px] uppercase tracking-[0.2em] font-bold text-primary mb-6">
             <Sparkles className="w-3 h-3" strokeWidth={2.5} />
             Built for Indian English
           </div>
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-likho-indigo leading-[1.05] tracking-tight">
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-primary leading-[1.05] tracking-tight">
             Write better English in any Windows app.
           </h1>
-          <p className="mt-5 text-lg text-likho-slate leading-relaxed max-w-xl">
+          <p className="mt-5 text-lg text-on-surface-variant leading-relaxed max-w-xl">
             Press <KeyHint>Alt</KeyHint>
-            <span className="mx-1 text-likho-slate/60">+</span>
+            <span className="mx-1 text-on-surface-variant/60">+</span>
             <KeyHint>Space</KeyHint> anywhere. AI rewrites your text in 3 professional tones.
             Built for how Indians actually write — Hinglish, Indian English, lakh/crore.
           </p>
@@ -67,23 +68,23 @@ function Hero() {
             <a
               href={DOWNLOAD_URL}
               id="download"
-              className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-likho-indigo text-likho-cream text-sm font-bold hover:bg-likho-indigo/90 active:scale-[0.98] transition-all shadow-lg shadow-likho-indigo/25"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-primary-container text-on-primary-container text-sm font-bold hover:bg-primary-container/90 active:scale-[0.98] transition-all shadow-lg shadow-primary-container/25"
             >
               Download for Windows — free
               <ArrowRight className="w-4 h-4" strokeWidth={2.5} />
             </a>
             <a
               href="#founding"
-              className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full glass-card text-likho-indigo text-sm font-bold hover:bg-white/85 active:scale-[0.98] transition-all"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full glass-card text-primary text-sm font-bold hover:bg-surface-container-high active:scale-[0.98] transition-all"
             >
               <Sparkles className="w-4 h-4" strokeWidth={2.5} />
               Reserve founding-member access — ₹4,900 lifetime
             </a>
           </div>
-          <p className="mt-4 text-xs text-likho-slate leading-relaxed max-w-md">
+          <p className="mt-4 text-xs text-on-surface-variant leading-relaxed max-w-md">
             5 free rewrites, no signup. Windows 11 · ~12&nbsp;MB.
             <br />
-            <span className="text-likho-slate/80">
+            <span className="text-on-surface-variant/80">
               Heads-up: the installer isn't code-signed yet. Windows will say{" "}
               <em>"Windows protected your PC"</em> — click <strong>More info</strong>{" "}
               → <strong>Run anyway</strong>. Signed installer coming soon.
@@ -101,7 +102,7 @@ function Hero() {
 
 function KeyHint({ children }: { children: React.ReactNode }) {
   return (
-    <kbd className="inline-flex items-center justify-center min-w-[1.75rem] h-6 px-1.5 rounded-md text-[11px] font-mono font-bold uppercase tracking-wide bg-white/85 border border-likho-indigo/30 text-likho-indigo shadow-sm">
+    <kbd className="inline-flex items-center justify-center min-w-[1.75rem] h-6 px-1.5 rounded-md text-[11px] font-mono font-bold uppercase tracking-wide bg-surface-container-high border border-primary/30 text-primary shadow-sm">
       {children}
     </kbd>
   );
@@ -138,13 +139,13 @@ function Problem() {
         <div className="mt-12 grid md:grid-cols-3 gap-6">
           {cards.map((c) => (
             <div key={c.title} className="glass-card rounded-2xl p-6">
-              <div className="w-9 h-9 rounded-full bg-likho-coral/15 border border-likho-coral/40 flex items-center justify-center mb-3">
-                <X className="w-5 h-5 text-likho-coral" strokeWidth={2.5} />
+              <div className="w-9 h-9 rounded-full bg-error/15 border border-error/40 flex items-center justify-center mb-3">
+                <X className="w-5 h-5 text-error" strokeWidth={2.5} />
               </div>
-              <h3 className="text-lg font-bold text-likho-indigo leading-snug">
+              <h3 className="text-lg font-bold text-primary leading-snug">
                 {c.title}
               </h3>
-              <p className="mt-2 text-sm text-likho-slate leading-relaxed">{c.body}</p>
+              <p className="mt-2 text-sm text-on-surface-variant leading-relaxed">{c.body}</p>
             </div>
           ))}
         </div>
@@ -184,16 +185,16 @@ function HowItWorks() {
           {steps.map((s, i) => (
             <div key={s.title} className="glass-card rounded-2xl p-6">
               <div className="flex items-center gap-3 mb-3">
-                <div className="text-[10px] uppercase tracking-[0.2em] font-bold text-likho-indigo/70">
+                <div className="text-[10px] uppercase tracking-[0.2em] font-bold text-primary/70">
                   Step {i + 1}
                 </div>
-                <span className="h-px flex-1 bg-likho-indigo/15" />
+                <span className="h-px flex-1 bg-primary-container/15" />
               </div>
-              <div className="w-12 h-12 rounded-2xl bg-likho-indigo/10 border border-likho-indigo/25 flex items-center justify-center mb-3">
-                <s.Icon className="w-6 h-6 text-likho-indigo" strokeWidth={2} />
+              <div className="w-12 h-12 rounded-2xl bg-primary-container/10 border border-primary/25 flex items-center justify-center mb-3">
+                <s.Icon className="w-6 h-6 text-primary" strokeWidth={2} />
               </div>
-              <h3 className="text-lg font-bold text-likho-indigo">{s.title}</h3>
-              <p className="mt-2 text-sm text-likho-slate leading-relaxed">{s.body}</p>
+              <h3 className="text-lg font-bold text-primary">{s.title}</h3>
+              <p className="mt-2 text-sm text-on-surface-variant leading-relaxed">{s.body}</p>
             </div>
           ))}
         </div>
@@ -210,6 +211,11 @@ function Features() {
       Icon: Zap,
       title: "3 tones in 2 seconds",
       body: "Professional, Concise, Friendly. Pick what fits the moment.",
+    },
+    {
+      Icon: Mic,
+      title: "Voice mode (Alt+V) — Pro+",
+      body: "Hold Alt+V, speak Hindi or English, release. Likho returns polished business English in ~3 seconds.",
     },
     {
       Icon: Languages,
@@ -247,11 +253,11 @@ function Features() {
         <div className="mt-12 grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {features.map((f) => (
             <div key={f.title} className="glass-card rounded-2xl p-5">
-              <div className="w-10 h-10 rounded-xl bg-likho-indigo/10 border border-likho-indigo/25 flex items-center justify-center mb-3">
-                <f.Icon className="w-5 h-5 text-likho-indigo" strokeWidth={2} />
+              <div className="w-10 h-10 rounded-xl bg-primary-container/10 border border-primary/25 flex items-center justify-center mb-3">
+                <f.Icon className="w-5 h-5 text-primary" strokeWidth={2} />
               </div>
-              <h3 className="text-base font-bold text-likho-indigo">{f.title}</h3>
-              <p className="mt-1.5 text-sm text-likho-slate leading-relaxed">{f.body}</p>
+              <h3 className="text-base font-bold text-primary">{f.title}</h3>
+              <p className="mt-1.5 text-sm text-on-surface-variant leading-relaxed">{f.body}</p>
             </div>
           ))}
         </div>
@@ -262,13 +268,25 @@ function Features() {
 
 // ============ PRICING ============
 
+type Tier = {
+  name: string;
+  tag: string;
+  price: string;
+  sub: string;
+  bullets: string[];
+  highlight?: string;
+  cta?: { label: string; href: string };
+  subscribe?: "pro" | "pro_plus";
+  featured: boolean;
+};
+
 function Pricing() {
-  const tiers = [
+  const tiers: Tier[] = [
     {
       name: "Free",
-      tag: "Forever free",
+      tag: "Try it now",
       price: "₹0",
-      sub: "20 rewrites/day",
+      sub: "5 demo rewrites",
       bullets: ["3 tones", "Hinglish detection", "All Windows apps"],
       cta: { label: "Download for Windows", href: DOWNLOAD_URL },
       featured: false,
@@ -277,9 +295,29 @@ function Pricing() {
       name: "Pro",
       tag: "Available now",
       price: "₹299",
-      sub: "/month, unlimited",
-      bullets: ["Unlimited rewrites", "Voice mode", "Long-email summaries", "Custom tone presets"],
-      subscribe: true as const,
+      sub: "/month",
+      bullets: [
+        "Unlimited rewrites",
+        "3 tones + Hinglish",
+        "Indian English idioms",
+        "Priority response time",
+      ],
+      subscribe: "pro",
+      featured: false,
+    },
+    {
+      name: "Pro+",
+      tag: "New — voice mode",
+      price: "₹499",
+      sub: "/month",
+      highlight: "Includes voice mode",
+      bullets: [
+        "Everything in Pro",
+        "Voice mode (Alt+V) — Hindi/English/Hinglish",
+        "Long-email summaries",
+        "Custom tone presets",
+      ],
+      subscribe: "pro_plus",
       featured: false,
     },
     {
@@ -287,11 +325,12 @@ function Pricing() {
       tag: "First 50 only",
       price: "₹4,900",
       sub: "lifetime, one-time",
+      highlight: "Voice mode included for life",
       bullets: [
-        "Everything in Pro, forever",
+        "Everything in Pro+, forever",
+        "Voice mode included from day one",
         "Locked-in price — never goes up",
         "Priority support directly from the founder",
-        "Influence the roadmap",
       ],
       cta: { label: "Reserve my spot", href: "#founding-form" },
       featured: true,
@@ -304,56 +343,66 @@ function Pricing() {
           eyebrow="Pricing"
           title="Try free. Upgrade only if it's saving you time."
         />
-        <div className="mt-12 grid md:grid-cols-3 gap-6 items-stretch">
+        <div className="mt-12 grid md:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
           {tiers.map((t) => (
             <div
               key={t.name}
               className={`glass-card rounded-2xl p-6 flex flex-col ${
-                t.featured ? "ring-2 ring-likho-indigo/40" : ""
+                t.featured ? "ring-2 ring-primary/40" : ""
               }`}
             >
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-bold text-likho-indigo">{t.name}</h3>
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-lg font-bold text-primary">{t.name}</h3>
                 {t.featured && (
-                  <span className="inline-flex items-center gap-1 text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full bg-likho-indigo text-likho-cream">
+                  <span className="shrink-0 inline-flex items-center gap-1 text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full bg-primary-container text-on-primary-container">
                     <Sparkles className="w-2.5 h-2.5" strokeWidth={2.5} /> Best deal
                   </span>
                 )}
               </div>
-              <div className="mt-1 text-[11px] uppercase tracking-[0.18em] font-semibold text-likho-slate">
+              <div className="mt-1 text-[11px] uppercase tracking-[0.18em] font-semibold text-on-surface-variant">
                 {t.tag}
               </div>
               <div className="mt-5 flex items-baseline gap-1.5">
-                <span className="text-4xl font-extrabold text-likho-indigo">{t.price}</span>
-                <span className="text-sm text-likho-slate">{t.sub}</span>
+                <span className="text-4xl font-extrabold text-primary">{t.price}</span>
+                <span className="text-sm text-on-surface-variant">{t.sub}</span>
               </div>
-              <ul className="mt-5 space-y-2 text-sm text-likho-ink">
+              {t.highlight && (
+                <div className="mt-2 text-[11px] uppercase tracking-[0.15em] font-bold text-secondary">
+                  {t.highlight}
+                </div>
+              )}
+              <ul className="mt-5 space-y-2 text-sm text-on-surface">
                 {t.bullets.map((b) => (
                   <li key={b} className="flex items-start gap-2">
                     <Check
-                      className="w-4 h-4 text-likho-indigo shrink-0 mt-0.5"
+                      className="w-4 h-4 text-primary shrink-0 mt-0.5"
                       strokeWidth={2.5}
                     />
                     <span>{b}</span>
                   </li>
                 ))}
               </ul>
-              {"cta" in t && t.cta && (
+              {t.cta && (
                 <a
                   href={t.cta.href}
                   className={`mt-6 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-full text-sm font-bold transition-all ${
                     t.featured
-                      ? "bg-likho-indigo text-likho-cream hover:bg-likho-indigo/90"
-                      : "bg-white/70 hover:bg-white text-likho-indigo border border-likho-indigo/25"
+                      ? "bg-primary-container text-on-primary-container hover:bg-primary-container/90"
+                      : "bg-surface-container/70 hover:bg-surface-container-high text-primary border border-primary/25"
                   }`}
                 >
                   {t.cta.label}
                   <ArrowRight className="w-4 h-4" strokeWidth={2.5} />
                 </a>
               )}
-              {"subscribe" in t && t.subscribe && (
+              {t.subscribe === "pro" && (
                 <div className="mt-6">
                   <RazorpayProSubscribe />
+                </div>
+              )}
+              {t.subscribe === "pro_plus" && (
+                <div className="mt-6">
+                  <RazorpayProPlusSubscribe />
                 </div>
               )}
             </div>
@@ -362,10 +411,10 @@ function Pricing() {
 
         <div id="founding-form" className="mt-12 max-w-xl mx-auto">
           <div className="glass-card rounded-2xl p-6">
-            <div className="text-[10px] uppercase tracking-[0.25em] font-bold text-likho-indigo mb-2">
+            <div className="text-[10px] uppercase tracking-[0.25em] font-bold text-primary mb-2">
               Lock in your founding spot
             </div>
-            <h4 className="text-xl font-bold text-likho-indigo mb-3">
+            <h4 className="text-xl font-bold text-primary mb-3">
               Pay ₹4,900 today — lifetime, locked-in price
             </h4>
             <FoundingSpotsBadge />
@@ -384,27 +433,27 @@ function FounderNote() {
     <Section className="px-6 sm:px-10 lg:px-16 py-20">
       <div className="max-w-3xl mx-auto">
         <div className="glass-card rounded-3xl p-8 sm:p-10 relative">
-          <div className="text-[10px] uppercase tracking-[0.25em] font-bold text-likho-indigo mb-3">
+          <div className="text-[10px] uppercase tracking-[0.25em] font-bold text-primary mb-3">
             From the founder
           </div>
-          <p className="text-lg text-likho-ink leading-relaxed">
+          <p className="text-lg text-on-surface leading-relaxed">
             I write 50+ messages a day in English — to clients, to my team, to people I haven't met.
           </p>
-          <p className="mt-4 text-base text-likho-slate leading-relaxed">
+          <p className="mt-4 text-base text-on-surface-variant leading-relaxed">
             Grammarly never quite got me. It corrected my "do the needful" into something neither I nor the recipient
             recognised. ChatGPT was great, but switching tabs ten times a day broke my flow. So I built Likho — for
             people who think in two languages and write in one, who want to sound polished without losing themselves.
           </p>
-          <p className="mt-4 text-base text-likho-slate leading-relaxed">
+          <p className="mt-4 text-base text-on-surface-variant leading-relaxed">
             If that sounds like you, I'd love for you to try it.
           </p>
           <div className="mt-6 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-likho-indigo/15 border border-likho-indigo/30 flex items-center justify-center text-likho-indigo font-bold">
+            <div className="w-10 h-10 rounded-full bg-primary-container/15 border border-primary/30 flex items-center justify-center text-primary font-bold">
               C
             </div>
             <div>
-              <div className="text-sm font-bold text-likho-indigo">Chetan</div>
-              <div className="text-xs text-likho-slate">Founder, Likho.ai</div>
+              <div className="text-sm font-bold text-primary">Chetan</div>
+              <div className="text-xs text-on-surface-variant">Founder, Likho.ai</div>
             </div>
           </div>
         </div>
@@ -430,12 +479,16 @@ function FAQ() {
       a: "Anyone can use it. The defaults — British spelling, Hinglish detection, Indian English idioms, lakh/crore — are tuned for Indian writers. If you write in plain American English, it'll still rewrite cleanly.",
     },
     {
-      q: "When does Pro launch?",
-      a: "May 2026. Founding members get early access at least 2 weeks before public launch, and the price stays ₹4,900 lifetime no matter what we charge later.",
+      q: "What's voice mode?",
+      a: "Hold Alt+V anywhere on Windows, speak in Hindi or English (or both — Hinglish works), release the keys. Likho transcribes and converts what you said into clean professional English ready to paste into Outlook, WhatsApp, LinkedIn, or wherever. Three tones to pick from, just like text rewrites. Voice mode is included in Pro+ and Founding tiers.",
+    },
+    {
+      q: "What's the difference between Pro and Pro+?",
+      a: "Pro (₹299/mo) is unlimited text rewrites — three tones, Hinglish, Indian English. Pro+ (₹499/mo) adds voice mode (Alt+V), long-email summaries, and custom tone presets. If you mostly type, Pro is enough. If you also dictate emails or messages while walking around, Pro+ pays for itself fast.",
     },
     {
       q: "What happens to founding members?",
-      a: "Lifetime access at the locked-in ₹4,900 price — never charged again. Priority support straight from the founder. Direct input on the roadmap. Capped at 50 to keep the support load real.",
+      a: "Lifetime access — voice mode included from day one, every future feature included forever. ₹4,900 once, never charged again. Priority support straight from the founder. Direct input on the roadmap. Capped at 50 to keep the support load real.",
     },
   ];
   return (
@@ -449,12 +502,12 @@ function FAQ() {
               className="glass-card rounded-2xl p-5 group"
             >
               <summary className="flex items-center justify-between cursor-pointer list-none">
-                <h3 className="text-base font-bold text-likho-indigo pr-4">{it.q}</h3>
-                <span className="shrink-0 w-6 h-6 rounded-full bg-likho-indigo/10 border border-likho-indigo/25 flex items-center justify-center text-likho-indigo font-bold transition-transform group-open:rotate-45">
+                <h3 className="text-base font-bold text-primary pr-4">{it.q}</h3>
+                <span className="shrink-0 w-6 h-6 rounded-full bg-primary-container/10 border border-primary/25 flex items-center justify-center text-primary font-bold transition-transform group-open:rotate-45">
                   +
                 </span>
               </summary>
-              <p className="mt-3 text-sm text-likho-slate leading-relaxed">{it.a}</p>
+              <p className="mt-3 text-sm text-on-surface-variant leading-relaxed">{it.a}</p>
             </details>
           ))}
         </div>
@@ -470,10 +523,10 @@ function Footer() {
     <footer className="px-6 sm:px-10 lg:px-16 pt-12 pb-8">
       <div className="max-w-7xl mx-auto glass-card rounded-2xl p-6 sm:p-8 flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between">
         <div>
-          <div className="text-base font-extrabold text-likho-indigo tracking-tight">
-            Likho<span className="text-likho-orange">.</span>ai
+          <div className="text-base font-extrabold text-primary tracking-tight">
+            Likho<span className="text-secondary">.</span>ai
           </div>
-          <p className="mt-1 text-xs text-likho-slate">
+          <p className="mt-1 text-xs text-on-surface-variant">
             © 2026 Likho. Built in India for Indian writers.
           </p>
         </div>
@@ -507,7 +560,7 @@ function FooterLink({
       href={href}
       target={href.startsWith("http") ? "_blank" : undefined}
       rel={href.startsWith("http") ? "noopener noreferrer" : undefined}
-      className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-white/70 hover:bg-white border border-likho-indigo/15 text-likho-indigo transition-colors"
+      className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-surface-container/70 hover:bg-surface-container-high border border-primary/15 text-primary transition-colors"
       title={label}
     >
       {children}
@@ -528,14 +581,14 @@ function SectionHeading({
 }) {
   return (
     <div className="text-center">
-      <div className="inline-block text-[11px] uppercase tracking-[0.25em] font-bold text-likho-indigo">
+      <div className="inline-block text-[11px] uppercase tracking-[0.25em] font-bold text-primary">
         {eyebrow}
       </div>
-      <h2 className="mt-3 text-3xl sm:text-4xl font-extrabold text-likho-indigo leading-tight tracking-tight">
+      <h2 className="mt-3 text-3xl sm:text-4xl font-extrabold text-primary leading-tight tracking-tight">
         {title}
       </h2>
       {subtitle && (
-        <p className="mt-3 text-base text-likho-slate max-w-2xl mx-auto leading-relaxed">
+        <p className="mt-3 text-base text-on-surface-variant max-w-2xl mx-auto leading-relaxed">
           {subtitle}
         </p>
       )}

@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/nickel-org/nickel.rs/master/schema/tauri.conf.json",
   "productName": "Likho",
-  "version": "0.2.3",
+  "version": "0.6.0",
   "identifier": "ai.likho.desktop",
   "build": {
     "frontendDist": "../dist",
@@ -15,8 +15,8 @@
       {
         "label": "overlay",
         "title": "Likho",
-        "width": 440,
-        "height": 320,
+        "width": 460,
+        "height": 380,
         "decorations": false,
         "transparent": true,
         "alwaysOnTop": true,

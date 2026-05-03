@@ -105,8 +105,8 @@ export function RazorpayCheckout() {
         <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-500/20 border border-emerald-500/40 mb-3">
           <Check className="w-6 h-6 text-emerald-600" strokeWidth={2.5} />
         </div>
-        <h4 className="text-lg font-bold text-likho-indigo">You're a founding member 🎉</h4>
-        <p className="text-sm text-likho-slate mt-2">
+        <h4 className="text-lg font-bold text-primary">You're a founding member 🎉</h4>
+        <p className="text-sm text-on-surface-variant mt-2">
           Payment confirmed. We've recorded your spot — you'll get an email with download details
           and your lifetime licence within a day.
         </p>
@@ -117,14 +117,14 @@ export function RazorpayCheckout() {
   if (status.kind === "founding_full") {
     return (
       <div className="glass-card rounded-2xl p-5 text-center">
-        <h4 className="text-lg font-bold text-likho-indigo">All 50 founding spots are taken</h4>
-        <p className="text-sm text-likho-slate mt-2 mb-4">
+        <h4 className="text-lg font-bold text-primary">All 50 founding spots are taken</h4>
+        <p className="text-sm text-on-surface-variant mt-2 mb-4">
           The lifetime tier sold out. The Pro tier (₹299/month, unlimited rewrites) is still open
           and unlocks the same features — same app, same overlay, monthly billing.
         </p>
         <a
           href="#founding"
-          className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-full bg-likho-indigo text-likho-cream text-sm font-bold hover:bg-likho-indigo/90 active:scale-[0.98] transition-all"
+          className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-full bg-primary-container text-on-primary-container text-sm font-bold hover:bg-primary-container/90 active:scale-[0.98] transition-all"
         >
           Subscribe to Pro instead
         </a>
@@ -143,13 +143,13 @@ export function RazorpayCheckout() {
           onChange={(e) => setEmail(e.target.value)}
           placeholder="you@example.com"
           disabled={busy}
-          className="flex-1 rounded-full px-4 py-2.5 bg-white/70 border border-likho-indigo/20 text-sm text-likho-ink placeholder:text-likho-slate/50 focus:bg-white focus:border-likho-indigo/50 focus:outline-none focus:ring-2 focus:ring-likho-indigo/15 disabled:opacity-50"
+          className="flex-1 rounded-full px-4 py-2.5 bg-surface-container/70 border border-primary/20 text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:bg-white focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:opacity-50"
         />
         <button
           type="button"
           onClick={onPay}
           disabled={busy}
-          className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-full bg-likho-indigo text-likho-cream text-sm font-bold hover:bg-likho-indigo/90 active:scale-[0.98] transition-all shadow-lg shadow-likho-indigo/25 disabled:opacity-60 disabled:cursor-not-allowed"
+          className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-full bg-primary-container text-on-primary-container text-sm font-bold hover:bg-primary-container/90 active:scale-[0.98] transition-all shadow-lg shadow-primary-container/25 disabled:opacity-60 disabled:cursor-not-allowed"
         >
           {busy ? (
             <>
@@ -165,9 +165,9 @@ export function RazorpayCheckout() {
         </button>
       </div>
       {status.kind === "error" && (
-        <p className="text-xs text-likho-coral px-1">{status.message}</p>
+        <p className="text-xs text-error px-1">{status.message}</p>
       )}
-      <p className="text-[11px] text-likho-slate/80 px-1">
+      <p className="text-[11px] text-on-surface-variant/80 px-1">
         Secure checkout via Razorpay. UPI, cards, netbanking. One-time payment, lifetime access.
       </p>
     </div>

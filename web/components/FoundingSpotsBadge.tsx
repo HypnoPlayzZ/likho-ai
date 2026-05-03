@@ -17,7 +17,7 @@ export function FoundingSpotsBadge() {
 
   if (!count) {
     return (
-      <p className="text-sm text-likho-slate mb-5">
+      <p className="text-sm text-on-surface-variant mb-5">
         50 spots total. After they're gone, the only path in is ₹299/month from launch.
       </p>
     );
@@ -25,7 +25,7 @@ export function FoundingSpotsBadge() {
 
   if (count.full) {
     return (
-      <div className="mb-5 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-likho-coral/15 border border-likho-coral/40 text-xs font-semibold text-likho-coral">
+      <div className="mb-5 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-error/15 border border-error/40 text-xs font-semibold text-error">
         <X className="w-3 h-3" strokeWidth={2.5} />
         All 50 founding spots are taken — try Pro at ₹299/mo
       </div>
@@ -37,12 +37,12 @@ export function FoundingSpotsBadge() {
   const almostGone = count.remaining <= 10;
   return (
     <div className="mb-5">
-      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-likho-orange/10 border border-likho-orange/40 text-xs font-bold text-likho-orange">
+      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-secondary/10 border border-secondary/40 text-xs font-bold text-secondary">
         <Sparkles className="w-3 h-3" strokeWidth={2.5} />
         {count.remaining} of {count.cap} spots left
-        {almostGone && <span className="ml-1 text-likho-coral">· almost gone</span>}
+        {almostGone && <span className="ml-1 text-error">· almost gone</span>}
       </div>
-      <p className="text-sm text-likho-slate mt-2.5">
+      <p className="text-sm text-on-surface-variant mt-2.5">
         After they're gone, the only path in is ₹299/month from launch.
       </p>
     </div>
