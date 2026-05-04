@@ -60,7 +60,7 @@ const config: Config = {
       },
       fontFamily: {
         sans: [
-          "Inter",
+          "var(--font-inter)",
           "-apple-system",
           "BlinkMacSystemFont",
           "Segoe UI",
